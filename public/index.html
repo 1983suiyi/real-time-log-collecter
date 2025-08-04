@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Log Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Real-time Log Viewer</h1>
+            <div class="filters">
+                <select id="platform-filter">
+                    <option value="android">Android</option>
+                    <option value="ios">iOS</option>
+                    <option value="harmonyos">HarmonyOS</option>
+                </select>
+                <input type="text" id="tag-filter" placeholder="Enter tag to filter...">
+                <button id="start-log">Start Logging</button>
+                <button id="stop-log">Stop Logging</button>
+                <button id="clear-logs">Clear Logs</button>
+            <button id="reload-config">Reload Config</button>
+            <button id="manage-config">Manage Config</button>
+            </div>
+        </header>
+        <div class="logs-wrapper">
+            <div id="log-container" class="log-box">
+                <!-- Logs will be appended here -->
+            </div>
+            <div id="behavior-log-container" class="log-box">
+                <!-- Behavior logs will be appended here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Management Modal -->
+    <div id="config-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Configuration Management</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>Current Configuration:</h3>
+                <textarea id="config-editor" rows="20" cols="80" placeholder="Loading configuration..."></textarea>
+                <div class="modal-actions">
+                    <button id="save-config">Save Configuration</button>
+                    <button id="cancel-config">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

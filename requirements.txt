@@ -1,0 +1,11 @@
+# Web框架和服务器相关
+Flask==2.3.3              # Python轻量级Web框架，用于构建HTTP服务器
+Werkzeug==2.3.7           # Flask的WSGI工具库，提供HTTP服务器功能
+
+# WebSocket实时通信
+Flask-SocketIO==5.3.6     # Flask的Socket.IO扩展，用于实时双向通信
+python-socketio==5.8.0    # Python Socket.IO客户端和服务器库
+python-engineio==4.7.1    # Socket.IO的底层引擎，处理传输协议
+
+# 跨域请求支持
+Flask-CORS==4.0.0         # Flask跨域资源共享(CORS)扩展，允许前端跨域访问API

@@ -1,0 +1,16 @@
+{
+  "behaviors": [
+    {
+      "description": "Detects if the application has crashed.",
+      "level": "info",
+      "name": "会话开启",
+      "pattern": ".*session_start.*"
+    },
+    {
+      "description": "Detects if the application has crashed.",
+      "level": "info",
+      "name": "会话结束",
+      "pattern": ".*session_end.*"
+    }
+  ]
+}
