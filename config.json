@@ -1,16 +1,106 @@
 {
   "behaviors": [
     {
-      "description": "Detects if the application has crashed.",
+      "dataType": "text",
+      "description": "检测应用会话开始",
+      "enabled": true,
       "level": "info",
-      "name": "会话开启",
-      "pattern": ".*session_start.*"
+      "name": " BI 会话开启",
+      "pattern": ".*BiBaseEvent \\[BI_FUN_TAG\\]:\\s+\"event\": \"session_start\".*",
+      "priority": 5
     },
     {
-      "description": "Detects if the application has crashed.",
+      "dataType": "text",
+      "description": "检测应用会话结束",
+      "enabled": true,
       "level": "info",
-      "name": "会话结束",
-      "pattern": ".*session_end.*"
+      "name": " BI 会话结束",
+      "pattern": ".*BiBaseEvent \\[BI_FUN_TAG\\]:\\s+\"event\": \"session_end\".*",
+      "priority": 5
+    },
+    {
+      "dataType": "json",
+      "description": "检测用户行为JSON数据",
+      "enabled": true,
+      "extractors": [
+        {
+          "dataType": "json",
+          "name": "userBehaviorData",
+          "pattern": "user_behavior:\\s*({.*})"
+        }
+      ],
+      "level": "info",
+      "name": "用户行为数据",
+      "pattern": ".*user_behavior.*",
+      "priority": 8,
+      "validation": {
+        "jsonSchema": {
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "data": {
+              "type": "object"
+            },
+            "timestamp": {
+              "type": "number"
+            },
+            "userId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "userId",
+            "action",
+            "timestamp"
+          ],
+          "type": "object"
+        },
+        "required": true
+      }
+    },
+    {
+      "dataType": "number",
+      "description": "检测性能相关的数值数据",
+      "enabled": true,
+      "extractors": [
+        {
+          "dataType": "number",
+          "name": "fpsValue",
+          "pattern": "fps:\\s*(\\d+)"
+        }
+      ],
+      "level": "warn",
+      "name": "性能指标",
+      "pattern": ".*performance.*fps:\\s*(\\d+)",
+      "priority": 7,
+      "validation": {
+        "numberRange": {
+          "max": 120,
+          "min": 0
+        }
+      }
+    },
+    {
+      "dataType": "boolean",
+      "description": "检测错误状态的布尔值",
+      "enabled": true,
+      "extractors": [
+        {
+          "dataType": "boolean",
+          "name": "errorState",
+          "pattern": "error_state:\\s*(true|false)"
+        }
+      ],
+      "level": "error",
+      "name": "错误状态",
+      "pattern": ".*error_state:\\s*(true|false)",
+      "priority": 9
     }
-  ]
+  ],
+  "globalSettings": {
+    "enableRealTimeValidation": true,
+    "maxLogHistory": 1000,
+    "validationTimeout": 5000
+  }
 }

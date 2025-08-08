@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Log Behavior Configuration Schema",
+  "description": "Schema for validating log behavior configuration with support for multiple data types",
+  "type": "object",
+  "properties": {
+    "behaviors": {
+      "type": "array",
+      "description": "Array of behavior definitions",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Behavior name",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "Behavior description"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["debug", "info", "warn", "error", "fatal"],
+            "description": "Log level"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Regular expression pattern to match",
+            "minLength": 1
+          },
+          "dataType": {
+            "type": "string",
+            "enum": ["text", "json", "number", "boolean", "regex"],
+            "default": "text",
+            "description": "Expected data type for validation"
+          },
+          "validation": {
+            "type": "object",
+            "description": "Validation rules for the behavior",
+            "properties": {
+              "required": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether this behavior is required"
+              },
+              "jsonSchema": {
+                "type": "object",
+                "description": "JSON schema for validating JSON data type"
+              },
+              "numberRange": {
+                "type": "object",
+                "properties": {
+                  "min": {"type": "number"},
+                  "max": {"type": "number"}
+                },
+                "description": "Range validation for number data type"
+              },
+              "stringLength": {
+                "type": "object",
+                "properties": {
+                  "min": {"type": "integer", "minimum": 0},
+                  "max": {"type": "integer", "minimum": 0}
+                },
+                "description": "Length validation for string data type"
+              },
+              "customValidator": {
+                "type": "string",
+                "description": "Custom JavaScript validation function"
+              }
+            }
+          },
+          "extractors": {
+            "type": "array",
+            "description": "Data extractors for parsing log content",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Extractor name"
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Regex pattern with capture groups"
+                },
+                "dataType": {
+                  "type": "string",
+                  "enum": ["text", "json", "number", "boolean"],
+                  "default": "text"
+                }
+              },
+              "required": ["name", "pattern"]
+            }
+          },
+          "actions": {
+            "type": "array",
+            "description": "Actions to perform when behavior is triggered",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["alert", "webhook", "email", "log", "counter"],
+                  "description": "Action type"
+                },
+                "config": {
+                  "type": "object",
+                  "description": "Action-specific configuration"
+                }
+              },
+              "required": ["type"]
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether this behavior is enabled"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5,
+            "description": "Behavior priority (1-10, higher is more important)"
+          }
+        },
+        "required": ["name", "pattern"],
+        "additionalProperties": false
+      }
+    },
+    "globalSettings": {
+      "type": "object",
+      "description": "Global configuration settings",
+      "properties": {
+        "maxLogHistory": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 1000,
+          "description": "Maximum number of log entries to keep in memory"
+        },
+        "enableRealTimeValidation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time validation of log data"
+        },
+        "validationTimeout": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 5000,
+          "description": "Timeout for validation operations in milliseconds"
+        }
+      }
+    }
+  },
+  "required": ["behaviors"],
+  "additionalProperties": false
+}

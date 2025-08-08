@@ -9,6 +9,8 @@ import threading
 from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
+import jsonschema
+from jsonschema import validate, ValidationError
 
 app = Flask(__name__, static_folder='public')
 CORS(app)  # Enable CORS for all routes
@@ -20,6 +22,7 @@ PORT = int(os.environ.get('PORT', 3000))
 log_process = None
 grep_process = None
 behavior_config = {'behaviors': []}
+logging_active = False  # Flag to control log streaming
 
 # Load behavior configuration
 def load_config():
@@ -27,9 +30,121 @@ def load_config():
     try:
         with open('config.json', 'r', encoding='utf-8') as f:
             behavior_config = json.load(f)
+        # Validate configuration against schema
+        validate_config_structure(behavior_config)
     except Exception as e:
         print(f'Error reading or parsing config.json: {e}')
         behavior_config = {'behaviors': []}
+
+def validate_config_structure(config):
+    """Validate configuration structure against schema"""
+    try:
+        with open('config_schema.json', 'r', encoding='utf-8') as f:
+            schema = json.load(f)
+        validate(instance=config, schema=schema)
+        return True, None
+    except ValidationError as e:
+        return False, f"Configuration validation error: {e.message}"
+    except FileNotFoundError:
+        print("Warning: config_schema.json not found, skipping schema validation")
+        return True, None
+    except Exception as e:
+        return False, f"Schema validation error: {str(e)}"
+
+def validate_data_by_type(data, data_type, validation_rules=None):
+    """Validate data based on specified type and rules"""
+    try:
+        if data_type == 'json':
+            if isinstance(data, str):
+                parsed_data = json.loads(data)
+            else:
+                parsed_data = data
+            
+            # Apply JSON schema validation if provided
+            if validation_rules and 'jsonSchema' in validation_rules:
+                validate(instance=parsed_data, schema=validation_rules['jsonSchema'])
+            return True, parsed_data, None
+            
+        elif data_type == 'number':
+            if isinstance(data, str):
+                num_data = float(data)
+            else:
+                num_data = float(data)
+            
+            # Apply number range validation if provided
+            if validation_rules and 'numberRange' in validation_rules:
+                range_rules = validation_rules['numberRange']
+                if 'min' in range_rules and num_data < range_rules['min']:
+                    return False, None, f"Number {num_data} is below minimum {range_rules['min']}"
+                if 'max' in range_rules and num_data > range_rules['max']:
+                    return False, None, f"Number {num_data} is above maximum {range_rules['max']}"
+            return True, num_data, None
+            
+        elif data_type == 'boolean':
+            if isinstance(data, str):
+                bool_data = data.lower() in ('true', '1', 'yes', 'on')
+            else:
+                bool_data = bool(data)
+            return True, bool_data, None
+            
+        elif data_type == 'text':
+            str_data = str(data)
+            # Apply string length validation if provided
+            if validation_rules and 'stringLength' in validation_rules:
+                length_rules = validation_rules['stringLength']
+                if 'min' in length_rules and len(str_data) < length_rules['min']:
+                    return False, None, f"String length {len(str_data)} is below minimum {length_rules['min']}"
+                if 'max' in length_rules and len(str_data) > length_rules['max']:
+                    return False, None, f"String length {len(str_data)} is above maximum {length_rules['max']}"
+            return True, str_data, None
+            
+        else:
+            return True, data, None
+            
+    except json.JSONDecodeError as e:
+        return False, None, f"Invalid JSON format: {str(e)}"
+    except ValueError as e:
+        return False, None, f"Invalid {data_type} format: {str(e)}"
+    except ValidationError as e:
+        return False, None, f"JSON schema validation failed: {e.message}"
+    except Exception as e:
+        return False, None, f"Validation error: {str(e)}"
+
+def extract_data_from_log(log_message, extractors):
+    """Extract structured data from log message using extractors"""
+    extracted_data = {}
+    
+    for extractor in extractors:
+        try:
+            pattern = re.compile(extractor['pattern'], re.IGNORECASE)
+            match = pattern.search(log_message)
+            
+            if match:
+                raw_data = match.group(1) if match.groups() else match.group(0)
+                data_type = extractor.get('dataType', 'text')
+                
+                is_valid, parsed_data, error = validate_data_by_type(raw_data, data_type)
+                
+                if is_valid:
+                    extracted_data[extractor['name']] = {
+                        'value': parsed_data,
+                        'type': data_type,
+                        'raw': raw_data
+                    }
+                else:
+                    extracted_data[extractor['name']] = {
+                        'value': None,
+                        'type': data_type,
+                        'raw': raw_data,
+                        'error': error
+                    }
+        except re.error as e:
+            socketio.emit('log', {
+                'platform': 'system',
+                'message': f'Invalid regex pattern in extractor "{extractor.get("name", "unknown")}": {extractor["pattern"]} - {str(e)}'
+            })
+    
+    return extracted_data
 
 # Initialize configuration
 load_config()
@@ -54,9 +169,34 @@ def update_config():
     try:
         new_config = request.get_json()
         
-        # Validate the configuration structure
+        # Basic structure validation
         if not new_config or 'behaviors' not in new_config or not isinstance(new_config['behaviors'], list):
-            return 'Invalid configuration format.', 400
+            return jsonify({'error': 'Invalid configuration format. Must contain "behaviors" array.'}), 400
+        
+        # Validate against schema
+        is_valid, error_message = validate_config_structure(new_config)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+        
+        # Validate each behavior's regex patterns
+        validation_errors = []
+        for i, behavior in enumerate(new_config['behaviors']):
+            # Validate main pattern
+            try:
+                re.compile(behavior['pattern'])
+            except re.error as e:
+                validation_errors.append(f"Behavior {i+1} '{behavior.get('name', 'unknown')}': Invalid regex pattern '{behavior['pattern']}' - {str(e)}")
+            
+            # Validate extractor patterns if present
+            if 'extractors' in behavior:
+                for j, extractor in enumerate(behavior['extractors']):
+                    try:
+                        re.compile(extractor['pattern'])
+                    except re.error as e:
+                        validation_errors.append(f"Behavior {i+1} '{behavior.get('name', 'unknown')}', Extractor {j+1} '{extractor.get('name', 'unknown')}': Invalid regex pattern '{extractor['pattern']}' - {str(e)}")
+        
+        if validation_errors:
+            return jsonify({'error': 'Regex validation errors', 'details': validation_errors}), 400
         
         # Save to file
         with open('config.json', 'w', encoding='utf-8') as f:
@@ -66,10 +206,15 @@ def update_config():
         behavior_config = new_config
         
         socketio.emit('log', {'platform': 'system', 'message': 'Configuration updated successfully.'})
-        return 'Configuration updated.', 200
+        return jsonify({'message': 'Configuration updated successfully.'}), 200
+    except json.JSONDecodeError as e:
+        error_msg = f'Invalid JSON format: {str(e)}'
+        socketio.emit('log', {'platform': 'system', 'message': f'Error updating configuration: {error_msg}'})
+        return jsonify({'error': error_msg}), 400
     except Exception as e:
-        socketio.emit('log', {'platform': 'system', 'message': f'Error updating configuration: {str(e)}'})
-        return 'Error updating configuration.', 500
+        error_msg = f'Error updating configuration: {str(e)}'
+        socketio.emit('log', {'platform': 'system', 'message': error_msg})
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/reload-config', methods=['POST'])
 def reload_config():
@@ -84,13 +229,60 @@ def reload_config():
 def analyze_log_behavior(log_message, platform):
     """Analyze log message for configured behaviors"""
     for behavior in behavior_config.get('behaviors', []):
+        # Skip disabled behaviors
+        if not behavior.get('enabled', True):
+            continue
+            
         try:
             pattern = re.compile(behavior['pattern'], re.IGNORECASE)
-            if pattern.search(log_message):
+            match = pattern.search(log_message)
+            
+            if match:
+                # Extract structured data if extractors are defined
+                extracted_data = {}
+                if 'extractors' in behavior:
+                    extracted_data = extract_data_from_log(log_message, behavior['extractors'])
+                
+                # Validate extracted data if validation rules are defined
+                validation_results = {}
+                if 'validation' in behavior and extracted_data:
+                    data_type = behavior.get('dataType', 'text')
+                    validation_rules = behavior['validation']
+                    
+                    # Get the main data to validate (first extractor or matched text)
+                    main_data = None
+                    if extracted_data:
+                        first_extractor = list(extracted_data.values())[0]
+                        main_data = first_extractor.get('raw')
+                    else:
+                        main_data = match.group(1) if match.groups() else match.group(0)
+                    
+                    if main_data:
+                        is_valid, parsed_data, error = validate_data_by_type(main_data, data_type, validation_rules)
+                        validation_results = {
+                            'isValid': is_valid,
+                            'parsedData': parsed_data,
+                            'error': error,
+                            'dataType': data_type
+                        }
+                
+                # Emit behavior triggered event with enhanced data
                 socketio.emit('behavior_triggered', {
                     'behavior': behavior,
-                    'log': log_message
+                    'log': log_message,
+                    'extractedData': extracted_data,
+                    'validationResults': validation_results,
+                    'platform': platform,
+                    'timestamp': threading.current_thread().ident  # Simple timestamp substitute
                 })
+                
+                # Log validation errors if any
+                if validation_results.get('error'):
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'Validation error in behavior "{behavior.get("name", "unknown")}": {validation_results["error"]}'
+                    })
+                    
         except re.error as e:
             socketio.emit('log', {
                 'platform': 'system', 
@@ -99,14 +291,17 @@ def analyze_log_behavior(log_message, platform):
 
 def read_log_stream(process, platform, tag=None):
     """Read log stream and emit to clients"""
+    global logging_active
     try:
-        while True:
+        while logging_active and process.poll() is None:
             line = process.stdout.readline()
             if not line:
-                if process.poll() is not None:
-                    break
                 continue
             
+            # Check again if logging is still active before processing
+            if not logging_active:
+                break
+                
             log_message = line.decode('utf-8', errors='ignore').strip()
             if log_message:
                 # Send log to frontend
@@ -115,7 +310,8 @@ def read_log_stream(process, platform, tag=None):
                 # Analyze for behaviors
                 analyze_log_behavior(log_message, platform)
     except Exception as e:
-        socketio.emit('log', {'platform': 'system', 'message': f'Error reading log stream: {str(e)}'})
+        if logging_active:  # Only emit error if logging is still active
+            socketio.emit('log', {'platform': 'system', 'message': f'Error reading log stream: {str(e)}'})
     finally:
         if process.poll() is None:
             process.terminate()
@@ -163,7 +359,7 @@ def get_command_path(command):
 
 @app.route('/start-log', methods=['POST'])
 def start_log():
-    global log_process, grep_process
+    global log_process, grep_process, logging_active
     
     data = request.get_json()
     platform = data.get('platform')
@@ -208,6 +404,9 @@ def start_log():
         return error_message, 400
     
     try:
+        # Set logging active flag
+        logging_active = True
+        
         # Start the main log process
         log_process = subprocess.Popen(
             command,
@@ -280,6 +479,9 @@ def start_log():
         stderr_thread = threading.Thread(target=read_stderr, daemon=True)
         stderr_thread.start()
         
+        # Notify frontend that logging is active
+        socketio.emit('logging_status', {'active': True})
+        
         return f'{platform} logging started.', 200
         
     except Exception as e:
@@ -299,7 +501,10 @@ def start_log():
 
 @app.route('/stop-log', methods=['POST'])
 def stop_log():
-    global log_process, grep_process
+    global log_process, grep_process, logging_active
+    
+    # Set logging inactive flag first to stop log streaming
+    logging_active = False
     
     if log_process and log_process.poll() is None:
         try:
@@ -313,11 +518,13 @@ def stop_log():
             log_process = None
             
             socketio.emit('log', {'platform': 'system', 'message': 'Logging process stopped.'})
+            socketio.emit('logging_status', {'active': False})  # Notify frontend about status change
             return 'Logging process stopped.', 200
         except Exception as e:
             socketio.emit('log', {'platform': 'system', 'message': f'Error stopping process: {str(e)}'})
             return 'Error stopping logging process.', 500
     else:
+        socketio.emit('logging_status', {'active': False})  # Ensure status is updated
         return 'No logging process is currently running.', 400
 
 # WebSocket events
