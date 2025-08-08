@@ -298,3 +298,134 @@ main {
 #cancel-config:hover {
     background-color: #da190b;
 }
+
+/* Markdown Preview Styles */
+.markdown-file-selector {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #333;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.markdown-file-selector label {
+    color: #e0e0e0;
+    font-weight: bold;
+}
+
+#markdown-file-select {
+    padding: 5px 10px;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 3px;
+    min-width: 200px;
+}
+
+#load-markdown {
+    padding: 5px 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+#load-markdown:hover {
+    background-color: #45a049;
+}
+
+.markdown-preview {
+    background-color: #1a1a1a;
+    padding: 20px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    max-height: 500px;
+    overflow-y: auto;
+    color: #e0e0e0;
+    line-height: 1.6;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+    color: #fff;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.markdown-preview h1 {
+    border-bottom: 2px solid #555;
+    padding-bottom: 5px;
+}
+
+.markdown-preview h2 {
+    border-bottom: 1px solid #444;
+    padding-bottom: 3px;
+}
+
+.markdown-preview code {
+    background-color: #2a2a2a;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    color: #f8f8f2;
+}
+
+.markdown-preview pre {
+    background-color: #2a2a2a;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+    border: 1px solid #444;
+}
+
+.markdown-preview pre code {
+    background: none;
+    padding: 0;
+}
+
+.markdown-preview blockquote {
+    border-left: 4px solid #4CAF50;
+    margin: 0;
+    padding-left: 15px;
+    color: #ccc;
+    font-style: italic;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+    padding-left: 20px;
+}
+
+.markdown-preview a {
+    color: #4CAF50;
+    text-decoration: none;
+}
+
+.markdown-preview a:hover {
+    text-decoration: underline;
+}
+
+.markdown-preview table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+    border: 1px solid #555;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.markdown-preview th {
+    background-color: #333;
+    font-weight: bold;
+}

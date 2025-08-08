@@ -170,6 +170,38 @@ app.post('/stop-log', (req, res) => {
     }
 });
 
+// Endpoint to get markdown file content
+app.get('/markdown/:filename', (req, res) => {
+    const filename = req.params.filename;
+    
+    // Security check: only allow certain markdown files
+    const allowedFiles = ['config_examples.md', 'README.md', 'CONFIG_VALIDATION.md'];
+    if (!allowedFiles.includes(filename)) {
+        return res.status(403).send('Access to this file is not allowed.');
+    }
+    
+    try {
+        const content = fs.readFileSync(filename, 'utf8');
+        res.json({ content: content, filename: filename });
+    } catch (error) {
+        res.status(404).send(`File ${filename} not found.`);
+    }
+});
+
+// Endpoint to list available markdown files
+app.get('/markdown', (req, res) => {
+    const allowedFiles = ['config_examples.md', 'README.md', 'CONFIG_VALIDATION.md'];
+    const availableFiles = allowedFiles.filter(file => {
+        try {
+            fs.accessSync(file, fs.constants.F_OK);
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    res.json({ files: availableFiles });
+});
+
 
 io.on('connection', (socket) => {
     console.log('A client connected to the web UI.');

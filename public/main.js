@@ -98,7 +98,85 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target === configModal) {
             configModal.style.display = 'none';
         }
+        
+        const markdownModal = document.getElementById('markdown-modal');
+        if (event.target === markdownModal) {
+            markdownModal.style.display = 'none';
+        }
     });
+
+    // Markdown Preview Functions
+    function loadMarkdownFiles() {
+        fetch('/markdown')
+            .then(response => response.json())
+            .then(files => {
+                const select = document.getElementById('markdown-file-select');
+                select.innerHTML = '<option value="">选择一个Markdown文件...</option>';
+                
+                files.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file;
+                    option.textContent = file;
+                    select.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading markdown files:', error);
+                document.getElementById('markdown-content').innerHTML = 
+                    '<p style="color: #ff6b6b;">加载文件列表失败: ' + error.message + '</p>';
+            });
+    }
+
+    function loadMarkdownContent(filename) {
+        const contentDiv = document.getElementById('markdown-content');
+        contentDiv.innerHTML = '<p>加载中...</p>';
+        
+        fetch(`/markdown/${filename}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.text();
+            })
+            .then(markdownText => {
+                // Use marked.js to render markdown
+                const htmlContent = marked.parse(markdownText);
+                contentDiv.innerHTML = htmlContent;
+            })
+            .catch(error => {
+                console.error('Error loading markdown content:', error);
+                contentDiv.innerHTML = 
+                    '<p style="color: #ff6b6b;">加载文件失败: ' + error.message + '</p>';
+            });
+    }
+
+    // Markdown Preview Event Listeners
+    const previewMarkdownBtn = document.getElementById('preview-markdown');
+    const closeMarkdownBtn = document.getElementById('close-markdown');
+    const loadMarkdownBtn = document.getElementById('load-markdown');
+    
+    if (previewMarkdownBtn) {
+        previewMarkdownBtn.addEventListener('click', function() {
+            const modal = document.getElementById('markdown-modal');
+            modal.style.display = 'block';
+            loadMarkdownFiles();
+        });
+    }
+
+    if (closeMarkdownBtn) {
+        closeMarkdownBtn.addEventListener('click', function() {
+            document.getElementById('markdown-modal').style.display = 'none';
+        });
+    }
+
+    if (loadMarkdownBtn) {
+        loadMarkdownBtn.addEventListener('click', function() {
+            const selectedFile = document.getElementById('markdown-file-select').value;
+            if (selectedFile) {
+                loadMarkdownContent(selectedFile);
+            }
+        });
+    }
     const addLogMessage = (log) => {
         const { platform, message } = log;
         const platformClass = platform ? platform.toLowerCase() : 'system';
@@ -385,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     clearLogsButton.addEventListener('click', () => {
         logContainer.innerHTML = '';
+        behaviorLogContainer.innerHTML = '';
     });
 
     logContainer.addEventListener('wheel', () => {

@@ -25,6 +25,7 @@
                 <button id="clear-logs">Clear Logs</button>
             <button id="reload-config">Reload Config</button>
             <button id="manage-config">Manage Config</button>
+            <button id="preview-markdown">Preview Markdown</button>
             </div>
         </header>
         <div class="logs-wrapper">
@@ -55,7 +56,30 @@
         </div>
     </div>
 
+    <!-- Markdown Preview Modal -->
+    <div id="markdown-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Markdown Preview</h2>
+                <span class="close-markdown">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="markdown-file-selector">
+                    <label for="markdown-file-select">Select Markdown File:</label>
+                    <select id="markdown-file-select">
+                        <option value="">Loading files...</option>
+                    </select>
+                    <button id="load-markdown">Load</button>
+                </div>
+                <div id="markdown-content" class="markdown-preview">
+                    <p>Select a markdown file to preview.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

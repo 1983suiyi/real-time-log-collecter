@@ -422,7 +422,7 @@ def start_log():
         if tag:
             socketio.emit('log', {'platform': 'system', 'message': f'Applying tag filter: "{tag}"'})
             grep_process = subprocess.Popen(
-                ['grep', '--line-buffered', '-i', tag],
+                ['grep', '--line-buffered', '-F', tag],
                 stdin=log_process.stdout,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
