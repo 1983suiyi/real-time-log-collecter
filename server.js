@@ -4,14 +4,15 @@ const socketIo = require('socket.io');
 const { spawn } = require('child_process');
 const cors = require('cors'); // Import cors
 const fs = require('fs');
+const yaml = require('js-yaml');
 
 // Load behavior configuration
 let behaviorConfig = { behaviors: [] };
 try {
-    const configData = fs.readFileSync('config.json', 'utf8');
-    behaviorConfig = JSON.parse(configData);
+    const configData = fs.readFileSync('config.yaml', 'utf8');
+    behaviorConfig = yaml.load(configData);
 } catch (error) {
-    console.error('Error reading or parsing config.json:', error);
+    console.error('Error reading or parsing config.yaml:', error);
 }
 
 const app = express();
@@ -49,7 +50,7 @@ app.post('/config', (req, res) => {
         }
         
         // Save to file
-        fs.writeFileSync('config.json', JSON.stringify(newConfig, null, 2));
+        fs.writeFileSync('config.yaml', yaml.dump(newConfig, { indent: 2 }));
         
         // Update in-memory configuration
         behaviorConfig = newConfig;
@@ -65,8 +66,8 @@ app.post('/config', (req, res) => {
 // Endpoint to reload the behavior configuration
 app.post('/reload-config', (req, res) => {
     try {
-        const configData = fs.readFileSync('config.json', 'utf8');
-        behaviorConfig = JSON.parse(configData);
+        const configData = fs.readFileSync('config.yaml', 'utf8');
+        behaviorConfig = yaml.load(configData);
         io.emit('log', { platform: 'system', message: 'Configuration reloaded successfully.' });
         res.status(200).send('Configuration reloaded.');
     } catch (error) {
@@ -170,37 +171,7 @@ app.post('/stop-log', (req, res) => {
     }
 });
 
-// Endpoint to get markdown file content
-app.get('/markdown/:filename', (req, res) => {
-    const filename = req.params.filename;
-    
-    // Security check: only allow certain markdown files
-    const allowedFiles = ['config_examples.md', 'README.md', 'CONFIG_VALIDATION.md'];
-    if (!allowedFiles.includes(filename)) {
-        return res.status(403).send('Access to this file is not allowed.');
-    }
-    
-    try {
-        const content = fs.readFileSync(filename, 'utf8');
-        res.json({ content: content, filename: filename });
-    } catch (error) {
-        res.status(404).send(`File ${filename} not found.`);
-    }
-});
 
-// Endpoint to list available markdown files
-app.get('/markdown', (req, res) => {
-    const allowedFiles = ['config_examples.md', 'README.md', 'CONFIG_VALIDATION.md'];
-    const availableFiles = allowedFiles.filter(file => {
-        try {
-            fs.accessSync(file, fs.constants.F_OK);
-            return true;
-        } catch {
-            return false;
-        }
-    });
-    res.json({ files: availableFiles });
-});
 
 
 io.on('connection', (socket) => {

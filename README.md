@@ -11,26 +11,36 @@
 
 ### 🔍 日志过滤
 - **标签过滤**: 支持按指定标签过滤日志内容
-- **模糊匹配**: 使用grep进行灵活的日志内容匹配
+- **精确匹配**: 使用grep -F进行固定字符串匹配，支持特殊字符和表情符号
 - **实时过滤**: 在日志收集过程中实时应用过滤规则
+- **多行日志合并**: 智能识别Android日志格式，自动合并多行日志为完整条目
 
 ### 🎯 行为分析
 - **配置化规则**: 通过JSON配置文件定义监控行为
 - **正则表达式**: 支持复杂的日志模式匹配
+- **数据提取**: 支持从日志中提取结构化数据（JSON、数字、布尔值等）
+- **数据验证**: 内置数据类型验证和JSON Schema验证
 - **实时触发**: 当检测到指定行为时立即通知
 - **行为分类**: 支持不同级别的行为分类（如critical、info等）
+- **优先级控制**: 支持行为优先级设置和启用/禁用控制
 
 ### 🌐 Web界面
 - **实时显示**: 通过WebSocket实时显示日志内容
 - **双窗口布局**: 分别显示原始日志和触发的行为
 - **配置管理**: 通过Web界面直接编辑和管理行为配置
-- **滚动控制**: 智能的自动滚动和手动滚动控制
+- **实时配置验证**: 输入时实时验证JSON配置格式和内容
+- **滚动控制**: 智能的自动滚动和手动滚动检测
+- **日志清理**: 一键清理所有日志窗口内容
+- **状态指示**: 实时显示日志收集状态
 
 ### ⚙️ 配置管理
 - **Web配置**: 通过浏览器界面管理配置
 - **实时更新**: 配置更改立即生效，无需重启服务
 - **JSON格式**: 直观的JSON配置格式
-- **配置验证**: 自动验证配置格式的正确性
+- **配置验证**: 自动验证配置格式和正则表达式的正确性
+- **Schema验证**: 支持JSON Schema验证配置结构
+- **错误提示**: 详细的配置错误提示和行号定位
+- **实时验证**: 编辑时实时验证配置内容
 
 ## 技术栈
 
@@ -110,18 +120,23 @@ python3 server.py
 ### 基本操作
 
 1. **选择平台**: 在下拉菜单中选择 Android、iOS 或 HarmonyOS
-2. **设置过滤标签** (可选): 在标签输入框中输入要过滤的关键词
+2. **设置过滤标签** (可选): 在标签输入框中输入要过滤的关键词，支持特殊字符和表情符号
 3. **开始日志收集**: 点击 "Start Logging" 按钮
-4. **查看日志**: 实时日志将显示在左侧窗口
-5. **查看行为触发**: 检测到的行为将显示在右侧窗口
+4. **查看日志**: 实时日志将显示在左侧窗口，多行日志会自动合并为完整条目
+5. **查看行为触发**: 检测到的行为将显示在右侧窗口，包含提取的数据和验证结果
 6. **停止日志收集**: 点击 "Stop Logging" 按钮
+7. **清理日志**: 点击 "Clear Logs" 按钮一键清理所有日志窗口内容
+8. **查看状态**: 顶部状态栏实时显示日志收集状态
 
 ### 配置管理
 
 1. **打开配置管理**: 点击 "Manage Config" 按钮
-2. **编辑配置**: 在弹出的文本框中编辑JSON配置
-3. **保存配置**: 点击 "Save Configuration" 保存更改
-4. **重新加载配置**: 点击 "Reload Config" 重新加载配置文件
+2. **编辑配置**: 在弹出的文本框中编辑JSON配置，支持实时语法验证
+3. **查看验证结果**: 配置错误会实时显示在编辑器下方，包含详细错误信息
+4. **保存配置**: 点击 "Save Configuration" 保存更改（仅在配置有效时可保存）
+5. **重新加载配置**: 点击 "Reload Config" 重新加载配置文件
+
+
 
 ### 配置文件格式
 
@@ -129,18 +144,61 @@ python3 server.py
 {
   "behaviors": [
     {
-      "name": "Application Crash",
-      "pattern": "fatal|exception|error",
-      "description": "检测应用程序崩溃或严重错误",
-      "level": "critical"
+      "name": "用户行为数据",
+      "description": "检测用户行为JSON数据",
+      "level": "info",
+      "pattern": ".*user_behavior.*",
+      "dataType": "json",
+      "validation": {
+        "required": true,
+        "jsonSchema": {
+          "type": "object",
+          "properties": {
+            "userId": {"type": "string"},
+            "action": {"type": "string"},
+            "timestamp": {"type": "number"}
+          },
+          "required": ["userId", "action", "timestamp"]
+        }
+      },
+      "extractors": [
+        {
+          "name": "userBehaviorData",
+          "pattern": "user_behavior:\\s*({.*})",
+          "dataType": "json"
+        }
+      ],
+      "enabled": true,
+      "priority": 8
     },
     {
-      "name": "User Login",
-      "pattern": "User successfully logged in",
-      "description": "跟踪用户登录事件",
-      "level": "info"
+      "name": "性能指标",
+      "description": "检测性能相关的数值数据",
+      "level": "warn",
+      "pattern": ".*performance.*fps:\\s*(\\d+)",
+      "dataType": "number",
+      "validation": {
+        "numberRange": {
+          "min": 0,
+          "max": 120
+        }
+      },
+      "extractors": [
+        {
+          "name": "fpsValue",
+          "pattern": "fps:\\s*(\\d+)",
+          "dataType": "number"
+        }
+      ],
+      "enabled": true,
+      "priority": 7
     }
-  ]
+  ],
+  "globalSettings": {
+    "maxLogHistory": 1000,
+    "enableRealTimeValidation": true,
+    "validationTimeout": 5000
+  }
 }
 ```
 
@@ -149,42 +207,66 @@ python3 server.py
 - `pattern`: 正则表达式模式
 - `description`: 行为描述
 - `level`: 行为级别 (如: critical, warning, info)
+- `dataType`: 数据类型 (text, json, number, boolean)
+- `validation`: 数据验证规则
+  - `jsonSchema`: JSON Schema验证规则
+  - `numberRange`: 数字范围验证
+  - `stringLength`: 字符串长度验证
+- `extractors`: 数据提取器配置
+  - `name`: 提取器名称
+  - `pattern`: 提取正则表达式
+  - `dataType`: 提取数据类型
+- `enabled`: 是否启用该行为
+- `priority`: 行为优先级 (1-10)
+- `globalSettings`: 全局设置
+  - `maxLogHistory`: 最大日志历史记录数
+  - `enableRealTimeValidation`: 启用实时验证
+  - `validationTimeout`: 验证超时时间
 
 ## API接口
 
-### 日志控制
-- `POST /start-log`: 开始日志收集
-  ```json
-  {
-    "platform": "android|ios|harmonyos",
-    "tag": "optional_filter_tag"
-  }
-  ```
+### WebSocket 事件
 
-- `POST /stop-log`: 停止日志收集
+- `log_data`: 接收实时日志数据（包含合并后的完整日志条目）
+- `behavior_triggered`: 接收行为触发事件（包含提取的数据和验证结果）
+- `status_update`: 接收状态更新
+- `validation_result`: 接收数据验证结果
 
-### 配置管理
+### HTTP 接口
+
+#### 日志管理
+- `POST /start_log`: 开始日志收集
+  - 参数: `platform` (android/ios/harmonyos), `tag` (可选过滤标签)
+- `POST /stop_log`: 停止日志收集
+
+#### 配置管理
 - `GET /config`: 获取当前配置
-- `POST /config`: 更新配置
-- `POST /reload-config`: 重新加载配置文件
+- `POST /config`: 更新配置（包含实时验证）
+- `POST /reload_config`: 重新加载配置文件
+- `POST /validate_config`: 验证配置格式和内容
 
-### WebSocket事件
-- `log`: 接收日志消息
-- `behavior_triggered`: 接收行为触发通知
+#### 数据处理
+- `POST /extract_data`: 手动触发数据提取
+- `POST /validate_data`: 验证提取的数据
+
+
 
 ## 项目结构
 
 ```
-macos_clean/
-├── server.py              # Python服务器主文件
-├── server.js              # Node.js服务器 (已弃用)
+real-time-log-collecter/
+├── server.py              # Flask后端服务器（包含多行日志合并、数据验证等功能）
+├── config.json            # 行为配置文件（支持数据提取和验证规则）
+├── public/
+│   ├── index.html         # 前端页面（双窗口布局、状态指示）
+│   ├── main.js            # 前端JavaScript逻辑（实时验证、日志清理等）
+│   └── style.css          # 样式文件
+├── docs/                  # 文档目录
+│   ├── API.md            # API接口文档
+│   ├── CONFIG.md         # 配置说明文档
+│   └── CHANGELOG.md      # 更新日志
 ├── requirements.txt       # Python依赖
-├── config.json           # 行为配置文件
-├── public/               # 前端文件
-│   ├── index.html        # 主页面
-│   ├── main.js          # JavaScript逻辑
-│   └── style.css        # 样式文件
-└── README.md            # 项目文档
+└── README.md             # 项目文档（本文件）
 ```
 
 ## 故障排除
@@ -230,20 +312,68 @@ python3 server.py
 
 本项目采用 MIT 许可证。详见 LICENSE 文件。
 
+## 技术栈
+
+### 后端
+- **Python 3.x**: 主要编程语言
+- **Flask**: Web框架
+- **Flask-SocketIO**: WebSocket实时通信
+- **正则表达式**: 日志模式匹配和数据提取
+- **JSON Schema**: 配置和数据验证
+
+### 前端
+- **HTML5**: 页面结构
+- **CSS3**: 样式设计
+- **JavaScript (ES6+)**: 交互逻辑
+- **Socket.IO**: 客户端WebSocket通信
+
+
+### 外部工具
+- **adb**: Android调试桥（Android日志收集）
+- **idevicesyslog**: iOS设备日志收集
+- **hdc**: HarmonyOS调试工具
+- **grep**: 日志过滤（支持固定字符串匹配）
+
+## 系统要求
+
+- Python 3.7+
+- 对应平台的调试工具：
+  - Android: Android SDK (adb)
+  - iOS: libimobiledevice (idevicesyslog)
+  - HarmonyOS: DevEco Studio (hdc)
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request 来改进这个项目！
 
+### 开发指南
+1. Fork 项目
+2. 创建功能分支
+3. 提交更改
+4. 更新 README.md（如有新功能）
+5. 创建 Pull Request
+
+## 许可证
+
+MIT License
+
 ## 更新日志
 
-### v2.0.0
-- 重构服务器端为Python
-- 添加配置管理Web界面
-- 改进行为分析功能
-- 优化WebSocket通信
+### v2.0.0 (2024-12-XX)
+- ✨ **多行日志合并**: 智能识别和合并Android多行日志条目
+- ✨ **特殊字符过滤**: 支持表情符号和特殊字符的精确匹配过滤
+- ✨ **数据提取和验证**: 支持JSON、数字、布尔值等数据类型的提取和验证
+- ✨ **实时配置验证**: JSON配置实时语法检查和错误提示
+- ✨ **日志清理功能**: 一键清理所有日志窗口内容
 
-### v1.0.0
-- 初始版本
-- 支持Android、iOS和HarmonyOS日志收集
-- 基本的标签过滤功能
-- 简单的Web界面
+- ✨ **状态指示器**: 实时显示日志收集状态
+- 🔧 **优化**: 改进WebSocket通信性能和稳定性
+- 🔧 **优化**: 增强用户界面交互体验
+
+### v1.0.0 (2024-01-XX)
+- 🎉 初始版本发布
+- ✅ 支持 Android、iOS、HarmonyOS 日志收集
+- ✅ 基本的行为检测功能
+- ✅ Web 界面管理
+- ✅ 配置文件管理
+- ✅ 实时日志显示

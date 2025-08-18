@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io(`http://${window.location.hostname}:${window.location.port}`);
+    const socket = io();
 
     const logContainer = document.getElementById('log-container');
     const behaviorLogContainer = document.getElementById('behavior-log-container');
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch('/config')
             .then(response => response.json())
             .then(config => {
-                configEditor.value = JSON.stringify(config, null, 2);
+                configEditor.value = jsyaml.dump(config, { indent: 2 });
             })
             .catch(err => {
                 addLogMessage({ platform: 'system', message: `Error loading configuration: ${err.message}` });
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveConfiguration = () => {
         try {
             const configText = configEditor.value;
-            const config = JSON.parse(configText);
+            const config = jsyaml.load(configText);
             
             // Validate configuration structure
             const validationResult = validateConfiguration(config);
@@ -73,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLogMessage({ platform: 'system', message: `Error saving configuration: ${err.message}` });
             });
         } catch (error) {
-            addLogMessage({ platform: 'system', message: `Invalid JSON format: ${error.message}` });
-            highlightJsonError(error, configText);
+            addLogMessage({ platform: 'system', message: `Invalid YAML format: ${error.message}` });
+            highlightYamlError(error, configText);
         }
     };
 
@@ -98,85 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target === configModal) {
             configModal.style.display = 'none';
         }
-        
-        const markdownModal = document.getElementById('markdown-modal');
-        if (event.target === markdownModal) {
-            markdownModal.style.display = 'none';
-        }
     });
 
-    // Markdown Preview Functions
-    function loadMarkdownFiles() {
-        fetch('/markdown')
-            .then(response => response.json())
-            .then(files => {
-                const select = document.getElementById('markdown-file-select');
-                select.innerHTML = '<option value="">选择一个Markdown文件...</option>';
-                
-                files.forEach(file => {
-                    const option = document.createElement('option');
-                    option.value = file;
-                    option.textContent = file;
-                    select.appendChild(option);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading markdown files:', error);
-                document.getElementById('markdown-content').innerHTML = 
-                    '<p style="color: #ff6b6b;">加载文件列表失败: ' + error.message + '</p>';
-            });
-    }
 
-    function loadMarkdownContent(filename) {
-        const contentDiv = document.getElementById('markdown-content');
-        contentDiv.innerHTML = '<p>加载中...</p>';
-        
-        fetch(`/markdown/${filename}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.text();
-            })
-            .then(markdownText => {
-                // Use marked.js to render markdown
-                const htmlContent = marked.parse(markdownText);
-                contentDiv.innerHTML = htmlContent;
-            })
-            .catch(error => {
-                console.error('Error loading markdown content:', error);
-                contentDiv.innerHTML = 
-                    '<p style="color: #ff6b6b;">加载文件失败: ' + error.message + '</p>';
-            });
-    }
-
-    // Markdown Preview Event Listeners
-    const previewMarkdownBtn = document.getElementById('preview-markdown');
-    const closeMarkdownBtn = document.getElementById('close-markdown');
-    const loadMarkdownBtn = document.getElementById('load-markdown');
-    
-    if (previewMarkdownBtn) {
-        previewMarkdownBtn.addEventListener('click', function() {
-            const modal = document.getElementById('markdown-modal');
-            modal.style.display = 'block';
-            loadMarkdownFiles();
-        });
-    }
-
-    if (closeMarkdownBtn) {
-        closeMarkdownBtn.addEventListener('click', function() {
-            document.getElementById('markdown-modal').style.display = 'none';
-        });
-    }
-
-    if (loadMarkdownBtn) {
-        loadMarkdownBtn.addEventListener('click', function() {
-            const selectedFile = document.getElementById('markdown-file-select').value;
-            if (selectedFile) {
-                loadMarkdownContent(selectedFile);
-            }
-        });
-    }
     const addLogMessage = (log) => {
         const { platform, message } = log;
         const platformClass = platform ? platform.toLowerCase() : 'system';
@@ -265,6 +189,56 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
+    function validateJsonSchemaTypes(schema, prefix) {
+        const errors = [];
+        const validTypes = ['string', 'number', 'integer', 'boolean', 'array', 'object', 'null'];
+        
+        function validateSchemaObject(obj, path) {
+            if (typeof obj !== 'object' || obj === null) return;
+            
+            // Check type field
+            if (obj.type) {
+                if (typeof obj.type === 'string') {
+                    if (!validTypes.includes(obj.type)) {
+                        errors.push(`${path}.type: 无效的类型 '${obj.type}'，应使用标准类型: ${validTypes.join(', ')}`);
+                    }
+                } else if (Array.isArray(obj.type)) {
+                    obj.type.forEach((type, index) => {
+                        if (!validTypes.includes(type)) {
+                            errors.push(`${path}.type[${index}]: 无效的类型 '${type}'，应使用标准类型: ${validTypes.join(', ')}`);
+                        }
+                    });
+                }
+            }
+            
+            // Recursively validate properties
+            if (obj.properties && typeof obj.properties === 'object') {
+                Object.keys(obj.properties).forEach(key => {
+                    validateSchemaObject(obj.properties[key], `${path}.properties.${key}`);
+                });
+            }
+            
+            // Validate items for arrays
+            if (obj.items) {
+                if (Array.isArray(obj.items)) {
+                    obj.items.forEach((item, index) => {
+                        validateSchemaObject(item, `${path}.items[${index}]`);
+                    });
+                } else {
+                    validateSchemaObject(obj.items, `${path}.items`);
+                }
+            }
+            
+            // Validate additionalProperties
+            if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {
+                validateSchemaObject(obj.additionalProperties, `${path}.additionalProperties`);
+            }
+        }
+        
+        validateSchemaObject(schema, prefix);
+        return errors;
+    }
+    
     function validateBehavior(behavior, index) {
         const errors = [];
         const prefix = `行为[${index}]`;
@@ -293,9 +267,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Validate JSON schema if dataType is json
-            if (behavior.dataType === 'json' && behavior.validation && behavior.validation.schema) {
+            if (behavior.dataType === 'json' && behavior.validation && behavior.validation.jsonSchema) {
                 try {
-                    JSON.parse(JSON.stringify(behavior.validation.schema));
+                    const schema = behavior.validation.jsonSchema;
+                    JSON.parse(JSON.stringify(schema));
+                    
+                    // Validate JSON Schema types
+                    const schemaValidationErrors = validateJsonSchemaTypes(schema, `${prefix}.validation.jsonSchema`);
+                    errors.push(...schemaValidationErrors);
                 } catch (e) {
                     errors.push(`${prefix}: 无效的JSON Schema: ${e.message}`);
                 }
@@ -333,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return errors;
     }
     
-    function highlightJsonError(error, configText) {
+    function highlightYamlError(error, configText) {
         const editor = document.getElementById('configEditor');
         if (!editor) return;
         
@@ -380,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function validateConfigurationRealTime(configText) {
         try {
-            const config = JSON.parse(configText);
+            const config = jsyaml.load(configText);
             const validationResult = validateConfiguration(config);
             
             const editor = document.getElementById('configEditor');
@@ -395,8 +374,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             const editor = document.getElementById('configEditor');
-            editor.style.borderColor = '#ff9800'; // Orange border for JSON syntax error
-            currentValidationErrors = [`JSON语法错误: ${error.message}`];
+            editor.style.borderColor = '#ff9800'; // Orange border for YAML syntax error
+            currentValidationErrors = [`YAML语法错误: ${error.message}`];
         }
     }
     

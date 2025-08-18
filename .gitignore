@@ -64,3 +64,7 @@ tools/*.dll
 !tools/*.sh
 !tools/*.py
 !tools/*.md
+
+# Trae AI folder
+.trae/
+.trae/*
