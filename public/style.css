@@ -298,3 +298,37 @@ main {
 #cancel-config:hover {
     background-color: #da190b;
 }
+
+.button-base, button, .button-like {
+    padding: 8px 12px;
+    border: 1px solid #666;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 1.5;
+    display: inline-block;
+}
+
+button, .button-like {
+    background-color: #4a4a4a;
+    color: #e0e0e0;
+}
+
+button:hover, .button-like:hover {
+    background-color: #5a5a5a;
+}
+
+#clear-logs {
+    background-color: #c0392b;
+    color: white;
+}
+
+#clear-logs:hover {
+    background-color: #e74c3c;
+}
+
+.filters .button-like {
+    font-weight: normal;
+}
