@@ -44,6 +44,10 @@ behavior_config = {'behaviors': []}  # 行为配置
 logging_active = False      # 日志流控制标志
 log_threads = []            # 活跃线程列表
 
+# 事件顺序检查相关变量
+triggered_events = []       # 已触发的事件列表，用于顺序检查
+event_order_config = []     # 事件顺序配置
+
 # 配置管理相关函数
 def load_config():
     """
@@ -60,17 +64,22 @@ def load_config():
         - YAML 解析错误
         - 配置结构验证失败
     """
-    global behavior_config
+    global behavior_config, event_order_config
     try:
         # 读取 YAML 配置文件
         with open('config.yaml', 'r', encoding='utf-8') as f:
-            behavior_config = yaml.safe_load(f)
+            config_data = yaml.safe_load(f) or {}
+        
+        behavior_config = config_data
+        event_order_config = config_data.get('event_order', [])
+
         # 验证配置结构
         validate_config_structure(behavior_config)
     except Exception as e:
         print(f'Error reading or parsing config.yaml: {e}')
         # 使用默认空配置
         behavior_config = {'behaviors': []}
+        event_order_config = []
 
 def validate_config_structure(config):
     """
@@ -397,6 +406,7 @@ def analyze_log_behavior(log_message, platform):
     
     遍历所有配置的行为模式，使用正则表达式检查日志消息是否匹配。
     如果匹配成功，则提取相关数据并触发行为事件。
+    同时检查事件触发顺序是否符合配置的预期顺序。
     
     参数:
         log_message (str): 待分析的日志消息
@@ -407,7 +417,8 @@ def analyze_log_behavior(log_message, platform):
         2. 跳过已禁用的行为
         3. 使用正则表达式匹配日志消息
         4. 如果匹配成功，提取数据并验证
-        5. 发送行为触发事件
+        5. 检查事件触发顺序
+        6. 发送行为触发事件
     """
     for behavior in behavior_config.get('behaviors', []):
         # Skip disabled behaviors
@@ -446,6 +457,48 @@ def analyze_log_behavior(log_message, platform):
                             'error': error,
                             'dataType': data_type
                         }
+                
+                # 检查事件顺序
+                global triggered_events, event_order_config
+                behavior_name = behavior.get('name', '')
+                
+                # 如果当前行为在事件顺序配置中，则进行顺序检查
+                if behavior_name and behavior_name in event_order_config:
+                    # 将当前事件添加到已触发事件列表
+                    triggered_events.append(behavior_name)
+                    
+                    # 检查事件顺序是否符合预期
+                    event_order_violation = None
+                    for i, event in enumerate(triggered_events):
+                        expected_index = event_order_config.index(event) if event in event_order_config else -1
+                        
+                        # 检查前面的事件是否都已触发
+                        for j in range(expected_index):
+                            expected_event = event_order_config[j]
+                            if expected_event not in triggered_events[:i]:
+                                event_order_violation = {
+                                    'current_event': event,
+                                    'missing_event': expected_event,
+                                    'message': f'事件 "{event}" 在 "{expected_event}" 之前触发，违反了预期顺序'
+                                }
+                                break
+                        
+                        if event_order_violation:
+                            break
+                    
+                    # 如果检测到顺序违规，发送违规事件
+                    if event_order_violation:
+                        socketio.emit('event_order_violation', {
+                            'violation': event_order_violation,
+                            'current_order': triggered_events,
+                            'expected_order': event_order_config
+                        })
+                        
+                        # 同时发送系统日志
+                        socketio.emit('log', {
+                            'platform': 'system',
+                            'message': f'事件顺序违规: {event_order_violation["message"]}'
+                        })
                 
                 # Emit behavior triggered event with enhanced data
                 socketio.emit('behavior_triggered', {
@@ -660,6 +713,8 @@ def get_command_path(command):
 
 @app.route('/start-log', methods=['POST'])
 def start_log():
+    global triggered_events
+    triggered_events = []
     """
     启动指定平台的日志收集
     

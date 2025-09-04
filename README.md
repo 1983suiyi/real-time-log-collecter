@@ -23,6 +23,7 @@
 - **实时触发**: 当检测到指定行为时立即通知
 - **行为分类**: 支持不同级别的行为分类（如critical、info等）
 - **优先级控制**: 支持行为优先级设置和启用/禁用控制
+- **事件顺序检查**: 监控事件触发顺序，确保符合预定义的顺序规则
 
 ### 🌐 Web界面
 - **实时显示**: 通过WebSocket实时显示日志内容
@@ -198,7 +199,11 @@ python3 server.py
     "maxLogHistory": 1000,
     "enableRealTimeValidation": true,
     "validationTimeout": 5000
-  }
+  },
+  "event_order": [
+    ["登录", "主页加载", "用户信息获取"],
+    ["视频播放", "广告展示"]
+  ]
 }
 ```
 
@@ -222,6 +227,7 @@ python3 server.py
   - `maxLogHistory`: 最大日志历史记录数
   - `enableRealTimeValidation`: 启用实时验证
   - `validationTimeout`: 验证超时时间
+- `event_order`: 事件顺序规则数组，每个子数组定义一个必须按顺序触发的事件序列
 
 ## API接口
 
@@ -231,6 +237,7 @@ python3 server.py
 - `behavior_triggered`: 接收行为触发事件（包含提取的数据和验证结果）
 - `status_update`: 接收状态更新
 - `validation_result`: 接收数据验证结果
+- `event_order_violation`: 接收事件顺序违规通知（包含当前事件、缺失事件和预期顺序）
 
 ### HTTP 接口
 
@@ -365,6 +372,7 @@ MIT License
 - ✨ **数据提取和验证**: 支持JSON、数字、布尔值等数据类型的提取和验证
 - ✨ **实时配置验证**: JSON配置实时语法检查和错误提示
 - ✨ **日志清理功能**: 一键清理所有日志窗口内容
+- ✨ **事件顺序检查**: 监控并验证事件触发顺序，确保符合预定义规则
 
 - ✨ **状态指示器**: 实时显示日志收集状态
 - 🔧 **优化**: 改进WebSocket通信性能和稳定性

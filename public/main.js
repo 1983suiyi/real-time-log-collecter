@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveConfigButton = document.getElementById('save-config');
     const cancelConfigButton = document.getElementById('cancel-config');
     const closeModalButton = document.querySelector('.close');
+    const tabButtons = document.querySelectorAll('.tab-button');
     
     // Configuration validation state
     let validationTimeout = null;
@@ -24,6 +25,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let isAutoScrollEnabled = true;
 
     const tagHistory = document.getElementById('tag-history');
+    
+    // Tab switching functionality
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons and panes
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding pane
+            button.classList.add('active');
+            const tabId = button.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
 
     // Load tag history from localStorage
     const loadTagHistory = () => {
@@ -128,6 +143,28 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
         `;
         behaviorLogContainer.appendChild(behaviorEntry);
+        behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
+        if (isAutoScrollEnabled) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    });
+    
+    // 处理事件顺序违规事件
+    socket.on('event_order_violation', (data) => {
+        const { violation, current_order, expected_order } = data;
+        const violationEntry = document.createElement('div');
+        violationEntry.className = 'log-entry event-order-violation';
+        violationEntry.innerHTML = `
+            <span class="log-platform error">[事件顺序错误]</span>
+            <span class="log-message">
+                <strong>错误信息:</strong> ${violation.message}<br>
+                <strong>当前事件:</strong> ${violation.current_event}<br>
+                <strong>缺失事件:</strong> ${violation.missing_event}<br>
+                <strong>当前顺序:</strong> ${current_order.join(' → ')}<br>
+                <strong>预期顺序:</strong> ${expected_order.join(' → ')}
+            </span>
+        `;
+        behaviorLogContainer.appendChild(violationEntry);
         behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
         if (isAutoScrollEnabled) {
             logContainer.scrollTop = logContainer.scrollHeight;

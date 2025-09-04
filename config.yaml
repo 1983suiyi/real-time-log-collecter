@@ -1,17 +1,38 @@
 behaviors:
 - dataType: text
+  description: SDK 初始化成功
+  enabled: true
+  level: info
+  name: SDK 初始化成功
+  pattern: .*installSuccess.*
+  priority: 5
+- dataType: text
+  description: TGA 会话开启
+  enabled: true
+  level: info
+  name: TGA 会话开启
+  pattern: .*thinking game TGTrace eventname:session_start.*
+  priority: 5
+- dataType: text
+  description: TGA 会话关闭
+  enabled: true
+  level: info
+  name: TGA 会话关闭
+  pattern: .*thinking game TGTrace eventname:session_end.*
+  priority: 5
+- dataType: text
   description: 检测应用会话开始
   enabled: true
   level: info
-  name: 会话开启
-  pattern: .*session_start.*
+  name: BI 会话开启
+  pattern: .*[BI_FUN_TAG]* "session_start".*
   priority: 5
 - dataType: text
   description: 检测应用会话结束
   enabled: true
   level: info
-  name: 会话结束
-  pattern: .*session_end.*
+  name: BI 会话结束
+  pattern: .*[BI_FUN_TAG]* "session_end".*
   priority: 5
 - dataType: json
   description: 检测用户行为JSON数据
@@ -67,83 +88,10 @@ behaviors:
   name: 错误状态
   pattern: .*error_state:\s*(true|false)
   priority: 9
-- dataType: json
-  description: 检测RUM元素刷新成功的JSON数据
-  enabled: true
-  extractors:
-  - dataType: json
-    name: rumData
-    pattern: RUM element flushed success:\s*({.*})
-  level: info
-  name: RUM数据上报
-  pattern: .*RUM element flushed success:.*
-  priority: 6
-  validation:
-    jsonSchema:
-      properties:
-        app_id:
-          type: integer
-        data_version:
-          type: string
-        event:
-          type: string
-        properties:
-          properties:
-            android_gps_version:
-              type: string
-            android_id:
-              type: string
-            app_build_code:
-              type: number
-            app_version:
-              type: string
-            call_stack_symbols:
-              type: string
-            config_etag:
-              type: string
-            device:
-              type: string
-            http_status:
-              type: string
-            log:
-              type: string
-            log_level:
-              type: string
-            log_type:
-              type: string
-            module:
-              type: string
-            os:
-              type: string
-            os_version:
-              type: string
-            sdk_version:
-              type: string
-            service_name:
-              type: string
-            sha-1:
-              type: string
-            target_user_id:
-              type: string
-          required:
-          - app_version
-          - sdk_version
-          - device
-          - os
-          type: object
-        rum_id:
-          type: string
-        ts:
-          type: string
-      required:
-      - app_id
-      - data_version
-      - event
-      - rum_id
-      - ts
-      - properties
-      type: object
-    required: true
+event_order:
+- SDK 初始化成功
+- TGA 会话关闭
+- BI 会话结束
 globalSettings:
   enableRealTimeValidation: true
   maxLogHistory: 1000
