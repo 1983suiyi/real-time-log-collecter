@@ -92,6 +92,42 @@ h1 {
     background-color: #e74c3c;
 }
 
+.export-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+#export-csv, #export-html {
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1px solid #444;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#export-csv {
+    background-color: #2980b9;
+    border-color: #2980b9;
+}
+
+#export-html {
+    background-color: #27ae60;
+    border-color: #27ae60;
+}
+
+#export-csv:hover {
+    background-color: #3498db;
+}
+
+#export-html:hover {
+    background-color: #2ecc71;
+}
+
 main {
     flex-grow: 1;
     overflow-y: auto;
