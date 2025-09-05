@@ -175,9 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 处理事件顺序违规事件
     socket.on('event_order_violation', (data) => {
-        const { violation, current_order, expected_order } = data;
+        const { violation, current_order, expected_order, all_groups } = data;
         const violationEntry = document.createElement('div');
         violationEntry.className = 'log-entry event-order-violation';
+        
+        // 构建分组信息的HTML
+        let groupsHtml = '';
+        if (all_groups && all_groups.length > 0) {
+            groupsHtml = '<strong>事件顺序分组:</strong><br>';
+            all_groups.forEach((group, index) => {
+                const isViolationGroup = group.includes(violation.current_event);
+                const groupClass = isViolationGroup ? 'violation-group' : '';
+                groupsHtml += `<span class="${groupClass}">分组 ${index + 1}: ${group.join(' → ')}</span><br>`;
+            });
+        }
+        
         violationEntry.innerHTML = `
             <span class="log-platform error">[事件顺序错误]</span>
             <span class="log-message">
@@ -185,7 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <strong>当前事件:</strong> ${violation.current_event}<br>
                 <strong>缺失事件:</strong> ${violation.missing_event}<br>
                 <strong>当前顺序:</strong> ${current_order.join(' → ')}<br>
-                <strong>预期顺序:</strong> ${expected_order.join(' → ')}
+                <strong>预期顺序:</strong> ${expected_order.join(' → ')}<br>
+                ${groupsHtml}
             </span>
         `;
         behaviorLogContainer.appendChild(violationEntry);
@@ -203,7 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
             current_event: violation.current_event,
             missing_event: violation.missing_event,
             current_order: current_order,
-            expected_order: expected_order
+            expected_order: expected_order,
+            all_groups: all_groups
         });
     });
 
@@ -428,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <th>缺失事件</th>
                             <th>当前顺序</th>
                             <th>预期顺序</th>
+                            <th>事件顺序分组</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -439,6 +454,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <td>${log.missing_event}</td>
                                 <td>${log.current_order.join(' → ')}</td>
                                 <td>${log.expected_order.join(' → ')}</td>
+                                <td>
+                                    ${log.all_groups ? log.all_groups.map((group, index) => {
+                                        const isViolationGroup = group.includes(log.current_event);
+                                        return `<div class="${isViolationGroup ? 'violation-group' : ''}">
+                                            分组 ${index + 1}: ${group.join(' → ')}
+                                        </div>`;
+                                    }).join('') : ''}
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>

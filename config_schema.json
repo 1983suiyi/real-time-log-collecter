@@ -154,10 +154,22 @@
     },
     "event_order": {
       "type": "array",
-      "description": "Defines the required order of events by their names",
+      "description": "Defines the required order of events by their names, can be a flat array or groups of arrays",
       "items": {
-        "type": "string",
-        "description": "The name of the behavior"
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "The name of the behavior"
+          },
+          {
+            "type": "array",
+            "description": "A group of behaviors in order",
+            "items": {
+              "type": "string",
+              "description": "The name of the behavior"
+            }
+          }
+        ]
       }
     }
   },

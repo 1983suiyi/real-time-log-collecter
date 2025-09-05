@@ -46,7 +46,8 @@ log_threads = []            # 活跃线程列表
 
 # 事件顺序检查相关变量
 triggered_events = []       # 已触发的事件列表，用于顺序检查
-event_order_config = []     # 事件顺序配置
+event_order_config = []     # 事件顺序配置（扁平列表）
+event_order_groups = []    # 事件顺序分组配置（二维数组）
 
 # 配置管理相关函数
 def load_config():
@@ -58,20 +59,40 @@ def load_config():
     
     全局变量:
         behavior_config: 存储加载的行为配置
+        event_order_config: 存储事件顺序配置（扁平列表）
+        event_order_groups: 存储事件顺序分组配置（二维数组）
     
     异常处理:
         - 文件不存在或读取失败
         - YAML 解析错误
         - 配置结构验证失败
     """
-    global behavior_config, event_order_config
+    global behavior_config, event_order_config, event_order_groups
     try:
         # 读取 YAML 配置文件
         with open('config.yaml', 'r', encoding='utf-8') as f:
             config_data = yaml.safe_load(f) or {}
         
         behavior_config = config_data
-        event_order_config = config_data.get('event_order', [])
+        
+        # 处理事件顺序配置，支持分组
+        event_order_raw = config_data.get('event_order', [])
+        event_order_groups = []
+        event_order_config = []
+        
+        # 如果配置是二维数组（分组），则处理分组
+        if event_order_raw and isinstance(event_order_raw, list):
+            for item in event_order_raw:
+                if isinstance(item, list):
+                    # 这是一个分组
+                    event_order_groups.append(item)
+                    # 同时将分组中的事件添加到扁平列表中，用于向后兼容
+                    event_order_config.extend(item)
+                else:
+                    # 单个事件，添加到扁平列表
+                    event_order_config.append(item)
+                    # 同时创建一个只包含这个事件的分组
+                    event_order_groups.append([item])
 
         # 验证配置结构
         validate_config_structure(behavior_config)
@@ -80,6 +101,7 @@ def load_config():
         # 使用默认空配置
         behavior_config = {'behaviors': []}
         event_order_config = []
+        event_order_groups = []
 
 def validate_config_structure(config):
     """
@@ -459,7 +481,7 @@ def analyze_log_behavior(log_message, platform):
                         }
                 
                 # 检查事件顺序
-                global triggered_events, event_order_config
+                global triggered_events, event_order_config, event_order_groups
                 behavior_name = behavior.get('name', '')
                 
                 # 如果当前行为在事件顺序配置中，则进行顺序检查
@@ -469,29 +491,42 @@ def analyze_log_behavior(log_message, platform):
                     
                     # 检查事件顺序是否符合预期
                     event_order_violation = None
-                    for i, event in enumerate(triggered_events):
-                        expected_index = event_order_config.index(event) if event in event_order_config else -1
-                        
-                        # 检查前面的事件是否都已触发
-                        for j in range(expected_index):
-                            expected_event = event_order_config[j]
-                            if expected_event not in triggered_events[:i]:
-                                event_order_violation = {
-                                    'current_event': event,
-                                    'missing_event': expected_event,
-                                    'message': f'事件 "{event}" 在 "{expected_event}" 之前触发，违反了预期顺序'
-                                }
+                    
+                    # 找出当前事件所在的分组
+                    for group in event_order_groups:
+                        if behavior_name in group:
+                            # 只在当前分组内检查顺序
+                            group_triggered_events = [event for event in triggered_events if event in group]
+                            
+                            # 在当前分组中的位置
+                            current_index_in_group = group.index(behavior_name)
+                            
+                            # 检查前面的事件是否都已触发
+                            for j in range(current_index_in_group):
+                                expected_event = group[j]
+                                if expected_event not in group_triggered_events:
+                                    event_order_violation = {
+                                        'current_event': behavior_name,
+                                        'missing_event': expected_event,
+                                        'message': f'事件 "{behavior_name}" 在 "{expected_event}" 之前触发，违反了预期顺序',
+                                        'group': group
+                                    }
+                                    break
+                            
+                            # 如果在当前分组中发现违规，不再检查其他分组
+                            if event_order_violation:
                                 break
-                        
-                        if event_order_violation:
-                            break
                     
                     # 如果检测到顺序违规，发送违规事件
                     if event_order_violation:
+                        # 找出违规事件所在的分组
+                        violation_group = event_order_violation.get('group', [])
+                        
                         socketio.emit('event_order_violation', {
                             'violation': event_order_violation,
                             'current_order': triggered_events,
-                            'expected_order': event_order_config
+                            'expected_order': violation_group,  # 只发送违规所在的分组
+                            'all_groups': event_order_groups    # 发送所有分组信息
                         })
                         
                         # 同时发送系统日志
