@@ -235,6 +235,20 @@ main {
     display: block;
 }
 
+#config-content {
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #444;
+    margin: 0;
+    overflow-x: auto;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
 #log-container {
     height: 100%;
     overflow-y: auto; /* Ensure individual containers can scroll if content overflows log-box */
@@ -244,6 +258,13 @@ main {
     height: 100%;
     overflow-x: auto; /* Enable horizontal scrolling for long content */
     overflow-y: auto; /* Keep vertical scrolling */
+}
+
+#config-container {
+    padding: 10px;
+    overflow-y: auto;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .log-entry {

@@ -1,14 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // 获取并显示当前配置内容
+    fetchAndDisplayConfig();
     const socket = io();
 
     const logContainer = document.getElementById('log-container');
     const behaviorLogContainer = document.getElementById('behavior-log-container');
+    const configContainer = document.getElementById('config-container');
+    const configContent = document.getElementById('config-content');
     const platformSelector = document.getElementById('platform-filter');
     const tagFilter = document.getElementById('tag-filter');
-    const toggleLogButton = document.getElementById('toggle-log');
-    let isLogging = false; // 跟踪日志状态
+    // toggle-log button has been removed
     const clearLogsButton = document.getElementById('clear-logs');
-    const reloadConfigButton = document.getElementById('reload-config');
     const configUploadInput = document.getElementById('config-upload');
     const manageConfigButton = document.getElementById('manage-config');
     const configModal = document.getElementById('config-modal');
@@ -43,6 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
             button.classList.add('active');
             const tabId = button.getAttribute('data-tab');
             document.getElementById(tabId).classList.add('active');
+            
+            // 如果点击的是配置内容标签，获取并显示最新配置
+            if (tabId === 'config-container') {
+                fetchAndDisplayConfig();
+            }
         });
     });
 
@@ -69,14 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    reloadConfigButton.addEventListener('click', () => {
-        fetch('/reload-config', {
-            method: 'POST',
-        })
-        .then(response => response.text())
-        .then(text => addLogMessage({ platform: 'system', message: text }))
-        .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
-    });
+    // reloadConfigButton has been removed
 
     configUploadInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
@@ -99,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(response => response.text())
                 .then(text => {
                     addLogMessage({ platform: 'system', message: text });
+                    // 更新配置内容显示
+                    fetchAndDisplayConfig();
                 })
                 .catch(err => {
                     addLogMessage({ platform: 'system', message: `Error saving configuration: ${err.message}` });
@@ -195,6 +197,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
+    // 获取并显示当前配置内容
+    function fetchAndDisplayConfig() {
+        fetch('/config')
+            .then(response => response.json())
+            .then(config => {
+                // 将配置对象转换为格式化的YAML字符串
+                const yamlString = jsyaml.dump(config, {
+                    indent: 2,
+                    lineWidth: -1 // 不限制行宽
+                });
+                // 显示在配置内容区域
+                configContent.textContent = yamlString;
+            })
+            .catch(err => {
+                configContent.textContent = `获取配置失败: ${err.message}`;
+            });
+    }
+    
     // 处理事件顺序违规事件
     socket.on('event_order_violation', (data) => {
         const { violation, current_order, expected_order, all_groups } = data;
@@ -258,54 +278,10 @@ document.addEventListener('DOMContentLoaded', () => {
             statusIndicator.className = isActive ? 'status-active' : 'status-inactive';
         }
         
-        // 更新按钮文本、样式和日志状态
-        isLogging = isActive;
-        if (toggleLogButton) {
-            toggleLogButton.textContent = isActive ? 'Stop Logging' : 'Start Logging';
-            if (isActive) {
-                toggleLogButton.classList.add('logging');
-            } else {
-                toggleLogButton.classList.remove('logging');
-            }
-        }
+        // 注意：toggle-log按钮已被移除，不再需要更新按钮状态
     }
 
-    toggleLogButton.addEventListener('click', () => {
-        if (!isLogging) {
-            // 开始日志收集
-            const platform = platformSelector.value;
-            const tag = tagFilter.value.trim();
-            saveTagToHistory(tag); // Save tag to history
-            fetch('/start-log', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ platform, tag }),
-            })
-            .then(response => response.text())
-            .then(text => {
-                addLogMessage({ platform: 'system', message: text });
-                toggleLogButton.textContent = 'Stop Logging';
-                toggleLogButton.classList.add('logging');
-                isLogging = true;
-            })
-            .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
-        } else {
-            // 停止日志收集
-            fetch('/stop-log', {
-                method: 'POST',
-            })
-            .then(response => response.text())
-            .then(text => {
-                addLogMessage({ platform: 'system', message: text });
-                toggleLogButton.textContent = 'Start Logging';
-                toggleLogButton.classList.remove('logging');
-                isLogging = false;
-            })
-            .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
-        }
-    });
+    // 注意：toggle-log按钮已被移除，不再需要点击事件处理程序
 
     clearLogsButton.addEventListener('click', () => {
         logContainer.innerHTML = '';
