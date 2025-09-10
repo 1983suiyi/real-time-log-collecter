@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const behaviorLogContainer = document.getElementById('behavior-log-container');
     const platformSelector = document.getElementById('platform-filter');
     const tagFilter = document.getElementById('tag-filter');
-    const startButton = document.getElementById('start-log');
-    const stopButton = document.getElementById('stop-log');
+    const toggleLogButton = document.getElementById('toggle-log');
+    let isLogging = false; // 跟踪日志状态
     const clearLogsButton = document.getElementById('clear-logs');
     const reloadConfigButton = document.getElementById('reload-config');
     const configUploadInput = document.getElementById('config-upload');
@@ -257,31 +257,54 @@ document.addEventListener('DOMContentLoaded', () => {
             statusIndicator.textContent = isActive ? '正在收集日志' : '日志收集已停止';
             statusIndicator.className = isActive ? 'status-active' : 'status-inactive';
         }
+        
+        // 更新按钮文本、样式和日志状态
+        isLogging = isActive;
+        if (toggleLogButton) {
+            toggleLogButton.textContent = isActive ? 'Stop Logging' : 'Start Logging';
+            if (isActive) {
+                toggleLogButton.classList.add('logging');
+            } else {
+                toggleLogButton.classList.remove('logging');
+            }
+        }
     }
 
-    startButton.addEventListener('click', () => {
-        const platform = platformSelector.value;
-        const tag = tagFilter.value.trim();
-        saveTagToHistory(tag); // Save tag to history
-        fetch('/start-log', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ platform, tag }),
-        })
-        .then(response => response.text())
-        .then(text => addLogMessage({ platform: 'system', message: text }))
-        .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
-    });
-
-    stopButton.addEventListener('click', () => {
-        fetch('/stop-log', {
-            method: 'POST',
-        })
-        .then(response => response.text())
-        .then(text => addLogMessage({ platform: 'system', message: text }))
-        .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
+    toggleLogButton.addEventListener('click', () => {
+        if (!isLogging) {
+            // 开始日志收集
+            const platform = platformSelector.value;
+            const tag = tagFilter.value.trim();
+            saveTagToHistory(tag); // Save tag to history
+            fetch('/start-log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ platform, tag }),
+            })
+            .then(response => response.text())
+            .then(text => {
+                addLogMessage({ platform: 'system', message: text });
+                toggleLogButton.textContent = 'Stop Logging';
+                toggleLogButton.classList.add('logging');
+                isLogging = true;
+            })
+            .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
+        } else {
+            // 停止日志收集
+            fetch('/stop-log', {
+                method: 'POST',
+            })
+            .then(response => response.text())
+            .then(text => {
+                addLogMessage({ platform: 'system', message: text });
+                toggleLogButton.textContent = 'Start Logging';
+                toggleLogButton.classList.remove('logging');
+                isLogging = false;
+            })
+            .catch(err => addLogMessage({ platform: 'system', message: `Error: ${err.message}` }));
+        }
     });
 
     clearLogsButton.addEventListener('click', () => {

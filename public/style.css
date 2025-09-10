@@ -67,13 +67,14 @@ h1 {
     justify-content: center;
 }
 
-#platform-filter, #keyword-filter, #clear-logs {
+#platform-filter, #keyword-filter, #clear-logs, #toggle-log {
     padding: 8px 12px;
     border-radius: 5px;
     border: 1px solid #444;
     background-color: #2a2a2a;
     color: #e0e0e0;
     font-size: 14px;
+    cursor: pointer;
 }
 
 #keyword-filter {
@@ -89,6 +90,26 @@ h1 {
 }
 
 #clear-logs:hover {
+    background-color: #e74c3c;
+}
+
+#toggle-log {
+    background-color: #27ae60;
+    border-color: #27ae60;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+#toggle-log:hover {
+    background-color: #2ecc71;
+}
+
+#toggle-log.logging {
+    background-color: #c0392b;
+    border-color: #c0392b;
+}
+
+#toggle-log.logging:hover {
     background-color: #e74c3c;
 }
 
