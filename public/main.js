@@ -146,30 +146,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('behavior_triggered', (data) => {
-        const { behavior, log } = data;
+        const { behavior, log, validationResults } = data;
         const behaviorEntry = document.createElement('div');
-        behaviorEntry.className = 'log-entry behavior-triggered';
+        
+        // 检查是否有验证错误
+        const hasValidationError = validationResults && 
+                                !validationResults.isValid && 
+                                validationResults.error;
+        
+        // 根据是否有验证错误设置不同的CSS类
+        behaviorEntry.className = hasValidationError ? 
+            'log-entry behavior-triggered validation-error' : 
+            'log-entry behavior-triggered';
+        
+        // 构建HTML内容
+        let messageHtml = `
+            <strong>${behavior.name}:</strong> ${behavior.description}<br>
+            <em>Triggering log:</em> ${log.replace(/\n/g, '<br>')}
+        `;
+        
+        // 如果有验证错误，添加错误信息样式
+        if (hasValidationError) {
+            messageHtml += `<div class="validation-error-message">验证错误: ${validationResults.error}</div>`;
+        }
+        
         behaviorEntry.innerHTML = `
             <span class="log-platform behavior">[Behavior Triggered]</span>
             <span class="log-message">
-                <strong>${behavior.name}:</strong> ${behavior.description}<br>
-                <em>Triggering log:</em> ${log.replace(/\n/g, '<br>')}
+                ${messageHtml}
             </span>
         `;
+        
         behaviorLogContainer.appendChild(behaviorEntry);
         behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
         if (isAutoScrollEnabled) {
             logContainer.scrollTop = logContainer.scrollHeight;
         }
         
-        // 添加行为日志到数组中，包含时间戳
+        // 添加行为日志到数组中，包含时间戳和验证结果
         const timestamp = new Date().toISOString();
         allBehaviorLogs.push({
             timestamp,
             type: 'behavior_triggered',
             name: behavior.name,
             description: behavior.description,
-            log: log
+            log: log,
+            validationResults: validationResults
         });
     });
     

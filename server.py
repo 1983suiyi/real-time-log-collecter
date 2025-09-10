@@ -169,7 +169,44 @@ def validate_data_by_type(data, data_type, validation_rules=None):
             
             # 应用 JSON Schema 验证（如果提供）
             if validation_rules and 'jsonSchema' in validation_rules:
-                validate(instance=parsed_data, schema=validation_rules['jsonSchema'])
+                socketio.emit('log', {
+                    'platform': 'system',
+                    'message': f'开始进行JSON Schema验证: {json.dumps(parsed_data, ensure_ascii=False)[:100]}...'
+                })
+                
+                # 检查是否有module字段，并记录其类型
+                if 'properties' in parsed_data and 'module' in parsed_data['properties']:
+                    module_value = parsed_data['properties']['module']
+                    module_type = type(module_value).__name__
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'JSON Schema验证前检查: module字段值={module_value}, 类型={module_type}'
+                    })
+                    
+                    # 检查schema中module字段的定义
+                    if 'properties' in validation_rules['jsonSchema'] and \
+                       'properties' in validation_rules['jsonSchema']['properties'] and \
+                       'module' in validation_rules['jsonSchema']['properties']['properties']['properties']:
+                        module_schema = validation_rules['jsonSchema']['properties']['properties']['properties']['module']
+                        socketio.emit('log', {
+                            'platform': 'system',
+                            'message': f'Schema中module字段定义: {json.dumps(module_schema, ensure_ascii=False)}'
+                        })
+                
+                try:
+                    validate(instance=parsed_data, schema=validation_rules['jsonSchema'])
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'JSON Schema验证通过'
+                    })
+                except ValidationError as e:
+                    error_path = '.'.join(str(p) for p in e.path)
+                    error_message = f'JSON Schema验证失败: 路径 {error_path}, 错误: {e.message}'
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': error_message
+                    })
+                    return False, None, error_message
             return True, parsed_data, None
             
         elif data_type == 'number':
@@ -260,11 +297,66 @@ def extract_data_from_log(log_message, extractors):
                 raw_data = match.group(1) if match.groups() else match.group(0)
                 data_type = extractor.get('dataType', 'text')  # 默认为文本类型
                 
+                # 对于JSON类型，尝试从日志中提取JSON部分
+                if data_type == 'json':
+                    try:
+                        # 尝试解析JSON字符串
+                        json_obj = json.loads(raw_data)
+                        raw_data = json.dumps(json_obj)  # 规范化JSON字符串
+                        
+                        # 调试输出：检查JSON对象中的module字段类型
+                        if 'properties' in json_obj and 'module' in json_obj['properties']:
+                            module_value = json_obj['properties']['module']
+                            module_type = type(module_value).__name__
+                            socketio.emit('log', {
+                                'platform': 'system',
+                                'message': f'检测到module字段: 值={module_value}, 类型={module_type}'
+                            })
+                    except json.JSONDecodeError:
+                        # 如果直接解析失败，尝试使用正则表达式提取JSON部分
+                        json_pattern = re.compile(r'({[^{}]*(?:{[^{}]*}[^{}]*)*}|\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])')
+                        json_match = json_pattern.search(raw_data)
+                        if json_match:
+                            try:
+                                json_str = json_match.group(0)
+                                json_obj = json.loads(json_str)
+                                raw_data = json.dumps(json_obj)  # 规范化JSON字符串
+                                
+                                # 调试输出：检查JSON对象中的module字段类型
+                                if 'properties' in json_obj and 'module' in json_obj['properties']:
+                                    module_value = json_obj['properties']['module']
+                                    module_type = type(module_value).__name__
+                                    socketio.emit('log', {
+                                        'platform': 'system',
+                                        'message': f'检测到module字段: 值={module_value}, 类型={module_type}'
+                                    })
+                            except json.JSONDecodeError as e:
+                                socketio.emit('log', {
+                                    'platform': 'system',
+                                    'message': f'Failed to parse JSON in extractor "{extractor.get("name", "unknown")}": {str(e)}'
+                                })
+                
                 # 验证提取的数据类型
-                is_valid, parsed_data, error = validate_data_by_type(raw_data, data_type)
+                socketio.emit('log', {
+                    'platform': 'system',
+                    'message': f'开始验证数据类型: {data_type}'
+                })
+                
+                # 检查是否有验证规则
+                if 'validation' in extractor:
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'发现验证规则: {json.dumps(extractor["validation"], ensure_ascii=False)[:100]}...'
+                    })
+                
+                is_valid, parsed_data, error = validate_data_by_type(raw_data, data_type, extractor.get('validation'))
                 
                 if is_valid:
                     # 验证成功，存储解析后的数据
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'数据验证成功: {extractor["name"]}'
+                    })
                     extracted_data[extractor['name']] = {
                         'value': parsed_data,
                         'type': data_type,
@@ -272,6 +364,10 @@ def extract_data_from_log(log_message, extractors):
                     }
                 else:
                     # 验证失败，存储错误信息
+                    socketio.emit('log', {
+                        'platform': 'system',
+                        'message': f'数据验证失败: {extractor["name"]}, 错误: {error}'
+                    })
                     extracted_data[extractor['name']] = {
                         'value': None,
                         'type': data_type,
@@ -536,14 +632,23 @@ def analyze_log_behavior(log_message, platform):
                         })
                 
                 # Emit behavior triggered event with enhanced data
-                socketio.emit('behavior_triggered', {
+                # 创建行为触发事件数据
+                behavior_data = {
                     'behavior': behavior,
                     'log': log_message,
                     'extractedData': extracted_data,
                     'validationResults': validation_results,
                     'platform': platform,
                     'timestamp': threading.current_thread().ident  # Simple timestamp substitute
-                })
+                }
+                
+                # 如果有验证错误，在日志消息中添加错误信息
+                if validation_results and not validation_results.get('isValid', True) and validation_results.get('error'):
+                    error_message = validation_results.get('error')
+                    behavior_data['log'] = f"{log_message}\n\n[JSON Schema验证失败]: {error_message}"
+                
+                # 发送行为触发事件
+                socketio.emit('behavior_triggered', behavior_data)
                 
                 # Log validation errors if any
                 if validation_results.get('error'):

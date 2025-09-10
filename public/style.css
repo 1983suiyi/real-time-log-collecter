@@ -261,6 +261,21 @@ main {
     font-weight: bold;
 }
 
+.behavior-triggered.validation-error {
+    border-left: 4px solid #f44336;
+    background-color: rgba(244, 67, 54, 0.05) !important;
+}
+
+.validation-error-message {
+    margin-top: 8px;
+    padding: 8px;
+    background-color: rgba(244, 67, 54, 0.1);
+    border-left: 4px solid #f44336;
+    color: #ff9999;
+    font-weight: bold;
+    border-radius: 4px;
+}
+
 .event-order-violation .log-platform.error {
     color: #ff0000;
     font-weight: bold;
