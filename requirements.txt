@@ -12,3 +12,9 @@ Flask-CORS==4.0.0         # Flask跨域资源共享(CORS)扩展，允许前端�
 
 # YAML配置文件解析
 PyYAML==6.0.1             # YAML文件解析库，用于读取和写入YAML格式的配置文件
+
+# JSON Schema验证
+jsonschema==4.17.3        # JSON Schema验证库，用于验证JSON数据结构
+
+# 日志处理
+colorlog==6.7.0           # 彩色日志输出，提高日志可读性
