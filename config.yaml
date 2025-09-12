@@ -146,8 +146,8 @@ behaviors:
   priority: 9
 event_order:
 - - SDK 初始化成功
-  - TGA 会话关闭
   - TGA 会话开启
+  - TGA 会话关闭
 - - SDK 初始化成功
   - BI 会话开启
   - BI 会话结束

@@ -733,7 +733,8 @@ def read_log_stream(process, platform, tag=None):
             if not logging_active:
                 break
                 
-            log_message = line.decode('utf-8', errors='ignore').strip()
+            # 使用 'replace' 而不是 'ignore' 来确保所有字符都能被正确处理，包括表情符号
+            log_message = line.decode('utf-8', errors='replace').strip()
             if not log_message:
                 continue
                 
@@ -888,6 +889,10 @@ def start_log():
     platform = data.get('platform')
     tag = data.get('tag', '').strip()
     
+    # 确保标签是UTF-8编码，以支持表情符号
+    if tag and isinstance(tag, str):
+        tag = tag.encode('utf-8').decode('utf-8')
+    
     # 检查是否已有日志进程在运行
     if log_process and log_process.poll() is None:
         return 'A logging process is already running.', 400
@@ -951,8 +956,12 @@ def start_log():
         # 如果请求标签过滤，通过 grep 管道处理
         if tag:
             socketio.emit('log', {'platform': 'system', 'message': f'Applying tag filter: "{tag}"'})
+            
+            # 使用二进制模式处理标签，确保表情符号等Unicode字符能被正确处理
+            tag_bytes = tag.encode('utf-8') if isinstance(tag, str) else tag
+            
             grep_process = subprocess.Popen(
-                ['grep', '--line-buffered', '-F', tag],  # 行缓冲模式，固定字符串匹配
+                ['grep', '--line-buffered', '-F', '-e', tag_bytes],  # 行缓冲模式，固定字符串匹配，使用-e参数传递二进制标签
                 stdin=log_process.stdout,   # 从日志进程的输出读取
                 stdout=subprocess.PIPE,     # 捕获过滤后的输出
                 stderr=subprocess.PIPE,     # 捕获错误
