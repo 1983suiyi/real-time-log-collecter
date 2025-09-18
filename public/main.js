@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabButtons = document.querySelectorAll('.tab-button');
     const exportCsvButton = document.getElementById('export-csv');
     const exportHtmlButton = document.getElementById('export-html');
+    const resetEventOrderButton = document.getElementById('reset-event-order');
     
     // 存储所有日志和行为日志的数组，用于导出功能
     let allLogs = [];
@@ -263,12 +264,77 @@ document.addEventListener('DOMContentLoaded', () => {
             all_groups: all_groups
         });
     });
+    
+    // 处理事件组完成事件
+    socket.on('event_group_completed', (data) => {
+        const { group_id, events, message } = data;
+        const completedEntry = document.createElement('div');
+        completedEntry.className = 'log-entry event-group-completed';
+        
+        completedEntry.innerHTML = `
+            <span class="log-platform success">[事件组完成]</span>
+            <span class="log-message">
+                <strong>事件组:</strong> ${group_id}<br>
+                <strong>完成事件:</strong> ${events.join(', ')}<br>
+                <strong>消息:</strong> ${message}
+            </span>
+        `;
+        behaviorLogContainer.appendChild(completedEntry);
+        behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
+        if (isAutoScrollEnabled) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 添加事件组完成到数组中，包含时间戳
+        const timestamp = new Date().toISOString();
+        allBehaviorLogs.push({
+            timestamp,
+            type: 'event_group_completed',
+            group_id: group_id,
+            events: events,
+            message: message
+        });
+    });
+    
+    // 处理事件组未完成事件
+    socket.on('event_group_incomplete', (data) => {
+        const { group_id, events, triggered, missing_events, message } = data;
+        const incompleteEntry = document.createElement('div');
+        incompleteEntry.className = 'log-entry event-group-incomplete';
+        
+        incompleteEntry.innerHTML = `
+            <span class="log-platform warning">[事件组未完成]</span>
+            <span class="log-message">
+                <strong>事件组:</strong> ${group_id}<br>
+                <strong>已触发事件:</strong> ${triggered.join(', ') || '无'}<br>
+                <strong>缺失事件:</strong> ${missing_events.join(', ')}<br>
+                <strong>消息:</strong> ${message}
+            </span>
+        `;
+        behaviorLogContainer.appendChild(incompleteEntry);
+        behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
+        if (isAutoScrollEnabled) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 添加事件组未完成到数组中，包含时间戳
+        const timestamp = new Date().toISOString();
+        allBehaviorLogs.push({
+            timestamp,
+            type: 'event_group_incomplete',
+            group_id: group_id,
+            events: events,
+            triggered: triggered,
+            missing_events: missing_events,
+            message: message
+        });
+    });
 
     socket.on('logging_status', (data) => {
         const { active } = data;
         updateLoggingStatus(active);
         if (!active) {
-            addLogMessage({ platform: 'system', message: '日志收集已停止' });
+            addLogMessage({ platform: 'system', message: '日志收集已停止，正在检查事件组状态...' });
         }
     });
 
@@ -407,6 +473,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const formattedDate = currentDate.toLocaleDateString();
         const formattedTime = currentDate.toLocaleTimeString();
         
+    // 重置事件顺序
+    resetEventOrderButton.addEventListener('click', () => {
+        fetch('/reset-event-order', {
+            method: 'POST',
+        })
+        .then(response => response.text())
+        .then(text => {
+            addLogMessage({ platform: 'system', message: '事件顺序追踪已重置' });
+        })
+        .catch(err => addLogMessage({ platform: 'system', message: `错误: ${err.message}` }));
+    });
+        
         if (activeTab === 'log-container') {
             // 导出系统日志
             dataToExport = allLogs;
@@ -473,30 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 
-                <h2>行为触发详情</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>类型</th>
-                            <th>名称</th>
-                            <th>描述</th>
-                            <th>触发日志</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${dataToExport.filter(log => log.type === 'behavior_triggered').map(log => `
-                            <tr class="behavior">
-                                <td>${new Date(log.timestamp).toLocaleString()}</td>
-                                <td>行为触发</td>
-                                <td>${log.name}</td>
-                                <td>${log.description}</td>
-                                <td>${log.log.replace(/\n/g, '<br>')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                
                 ${violationCount > 0 ? `
                 <h2>事件顺序违规详情</h2>
                 <table>
@@ -533,6 +587,70 @@ document.addEventListener('DOMContentLoaded', () => {
                     </tbody>
                 </table>
                 ` : ''}
+                
+                ${dataToExport.filter(log => log.type === 'event_group_completed').length > 0 ? `
+                <h2>事件组完成详情</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>事件组</th>
+                            <th>完成事件</th>
+                            <th>消息</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dataToExport.filter(log => log.type === 'event_group_completed').map(log => `
+                            <tr class="success">
+                                <td>${new Date(log.timestamp).toLocaleString()}</td>
+                                <td>${log.group_id}</td>
+                                <td>${log.events.join(', ')}</td>
+                                <td>${log.message}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ` : ''}
+                
+                <h2>行为触发详情</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>类型</th>
+                            <th>名称</th>
+                            <th>描述</th>
+                            <th>触发日志</th>
+                            <th>事件顺序状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dataToExport.filter(log => log.type === 'behavior_triggered').map(log => {
+                            // 查找与此行为相关的事件顺序违规
+                            const relatedViolations = dataToExport.filter(v => 
+                                v.type === 'event_order_violation' && 
+                                v.current_event === log.name
+                            );
+                            
+                            return `
+                            <tr class="behavior">
+                                <td>${new Date(log.timestamp).toLocaleString()}</td>
+                                <td>行为触发</td>
+                                <td>${log.name}</td>
+                                <td>${log.description}</td>
+                                <td class="${log.level === 'error' || log.level === 'critical' ? 'error-text' : ''}">${log.log.replace(/\n/g, '<br>')}</td>
+                                <td>
+                                    ${relatedViolations.length > 0 ? 
+                                        `<div class="error-text">顺序错误: ${relatedViolations.map(v => 
+                                            `缺少事件 "${v.missing_event}"，当前顺序: ${v.current_order.join(' → ')}`
+                                        ).join('<br>')}</div>` : 
+                                        '正常'
+                                    }
+                                </td>
+                            </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
             `;
         }
         
@@ -660,6 +778,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 .error {
                     color: #f44336;
+                }
+                .error-text {
+                    color: #f44336;
+                    font-weight: bold;
                 }
                 .stats {
                     display: flex;

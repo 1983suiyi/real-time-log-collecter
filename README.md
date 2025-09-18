@@ -1,6 +1,6 @@
-# Real-time Log Viewer
+# 实时日志收集器系统
 
-一个实时的移动设备日志查看器，支持Android、iOS和HarmonyOS设备的日志收集、过滤和行为分析。
+一个功能强大的实时移动设备日志收集和分析工具，支持Android、iOS和HarmonyOS设备的日志收集、智能过滤、行为分析和数据验证。专为移动应用开发和测试人员设计，通过直观的Web界面帮助开发者快速定位问题和分析应用行为。
 
 ## 功能特性
 
@@ -11,6 +11,7 @@
 
 ### 🔍 日志过滤
 - **标签过滤**: 支持按指定标签过滤日志内容
+- **多标签支持**: 支持同时使用多个标签进行过滤（用逗号分隔）
 - **精确匹配**: 使用grep -F进行固定字符串匹配，支持特殊字符和表情符号
 - **实时过滤**: 在日志收集过程中实时应用过滤规则
 - **多行日志合并**: 智能识别Android日志格式，自动合并多行日志为完整条目
@@ -34,6 +35,12 @@
 - **滚动控制**: 智能的自动滚动和手动滚动检测
 - **日志清理**: 一键清理所有日志窗口内容
 - **状态指示**: 实时显示日志收集状态
+
+### 📊 导出功能
+- **日志导出**: 支持导出日志为CSV格式和HTML报告
+- **行为分析导出**: 支持导出行为分析结果为JSON格式和HTML报告
+- **格式化报告**: 生成包含样式和过滤功能的HTML格式报告
+- **数据可视化**: 支持基本的数据可视化展示
 
 ### ⚙️ 配置管理
 - **Web配置**: 通过浏览器界面管理配置
@@ -63,7 +70,11 @@
 
 ### 系统要求
 - Python 3.7+
-- macOS (推荐) 或 Linux
+- **操作系统**：
+  - macOS (推荐)
+  - Linux
+  - Windows (部分功能支持)
+- **浏览器**：Chrome、Firefox、Safari或Edge最新版本
 
 ### Android设备支持
 - 安装 Android SDK Platform Tools
@@ -101,7 +112,7 @@
 ### 1. 克隆项目
 ```bash
 git clone <repository-url>
-cd macos_clean
+cd real-time-log-collecter
 ```
 
 ### 2. 安装Python依赖
@@ -122,7 +133,7 @@ python3 server.py
 ### 基本操作
 
 1. **选择平台**: 在下拉菜单中选择 Android、iOS 或 HarmonyOS
-2. **设置过滤标签** (可选): 在标签输入框中输入要过滤的关键词，支持特殊字符和表情符号
+2. **设置过滤标签** (可选): 在标签输入框中输入要过滤的关键词，支持特殊字符和表情符号，多个标签用逗号分隔
 3. **开始日志收集**: 点击 "Start Logging" 按钮
 4. **查看日志**: 实时日志将显示在左侧窗口，多行日志会自动合并为完整条目
 5. **查看行为触发**: 检测到的行为将显示在右侧窗口，包含提取的数据和验证结果
@@ -146,7 +157,20 @@ python3 server.py
 4. **错误定位**: 错误信息会指明具体的字段路径和期望的数据类型
 5. **视觉区分**: 验证错误消息使用特殊样式，便于与正常日志区分
 
+### 导出功能使用
 
+1. **导出日志**：点击"Export Logs"按钮
+   - 选择CSV格式：导出包含时间戳、级别、标签和消息的表格数据
+   - 选择HTML报告：生成格式化的HTML报告，包含样式和过滤功能
+
+2. **导出行为分析**：点击"Export Behaviors"按钮
+   - 选择JSON格式：导出包含所有行为触发记录和提取的数据
+   - 选择HTML报告：生成可视化的行为分析报告，包含数据统计
+
+3. **数据可视化**：HTML报告中包含基本的数据可视化图表
+   - 行为触发频率统计
+   - 验证错误分布
+   - 时间序列分析
 
 ### 配置文件格式
 
@@ -250,9 +274,9 @@ python3 server.py
 
 ### HTTP 接口
 
-#### 日志管理
+#### 日志过滤
 - `POST /start_log`: 开始日志收集
-  - 参数: `platform` (android/ios/harmonyos), `tag` (可选过滤标签)
+  - 参数: `platform` (android/ios/harmonyos), `tags` (可选过滤标签，多个标签用逗号分隔)
 - `POST /stop_log`: 停止日志收集
 
 #### 配置管理
@@ -272,16 +296,26 @@ python3 server.py
 ```
 real-time-log-collecter/
 ├── server.py              # Flask后端服务器（包含多行日志合并、数据验证等功能）
-├── config.json            # 行为配置文件（支持数据提取和验证规则）
+├── server.js              # Node.js备用服务器
+├── config.json            # 行为配置文件（JSON格式）
+├── config.yaml            # 行为配置文件（YAML格式）
+├── config_schema.json     # 配置文件验证Schema
 ├── public/
 │   ├── index.html         # 前端页面（双窗口布局、状态指示）
 │   ├── main.js            # 前端JavaScript逻辑（实时验证、日志清理等）
-│   └── style.css          # 样式文件
+│   ├── style.css          # 样式文件
+│   └── favicon.ico        # 网站图标
 ├── docs/                  # 文档目录
-│   ├── API.md            # API接口文档
-│   ├── CONFIG.md         # 配置说明文档
-│   └── CHANGELOG.md      # 更新日志
+│   ├── API_REFERENCE.md   # API接口文档
+│   ├── CONFIG_GUIDE.md    # 配置说明文档
+│   ├── DEPLOYMENT_GUIDE.md # 部署指南
+│   ├── USER_MANUAL.md     # 用户手册
+│   └── README.md          # 文档索引
+├── tools/                 # 工具脚本
+│   ├── README.md          # 工具说明
+│   └── setup_hdc.sh       # HarmonyOS工具安装脚本
 ├── requirements.txt       # Python依赖
+├── package.json           # Node.js依赖
 └── README.md             # 项目文档（本文件）
 ```
 
@@ -390,7 +424,7 @@ MIT License
 
 ## 更新日志
 
-### v2.0.0 (2024-12-XX)
+### v2.0.0 (2024-06-XX)
 - ✨ **多行日志合并**: 智能识别和合并Android多行日志条目
 - ✨ **特殊字符过滤**: 支持表情符号和特殊字符的精确匹配过滤
 - ✨ **数据提取和验证**: 支持JSON、数字、布尔值等数据类型的提取和验证
@@ -403,7 +437,7 @@ MIT License
 - 🔧 **优化**: 改进WebSocket通信性能和稳定性
 - 🔧 **优化**: 增强用户界面交互体验
 
-### v1.0.0 (2024-01-XX)
+### v1.0.0 (2023-12-XX)
 - 🎉 初始版本发布
 - ✅ 支持 Android、iOS、HarmonyOS 日志收集
 - ✅ 基本的行为检测功能

@@ -120,7 +120,7 @@ h1 {
     margin-top: 10px;
 }
 
-#export-csv, #export-html {
+#export-csv, #export-html, #reset-event-order {
     padding: 8px 12px;
     border-radius: 5px;
     border: 1px solid #444;
@@ -139,6 +139,11 @@ h1 {
 #export-html {
     background-color: #27ae60;
     border-color: #27ae60;
+}
+
+#reset-event-order {
+    background-color: #ff9800;
+    border-color: #ff9800;
 }
 
 #export-csv:hover {
@@ -343,6 +348,36 @@ main {
     border-radius: 4px;
     display: inline-block;
     margin: 2px 0;
+}
+
+.event-group-completed {
+    border-left: 3px solid #50fa7b;
+    background-color: rgba(80, 250, 123, 0.05) !important;
+}
+
+.event-group-completed .log-platform.success {
+    color: #50fa7b;
+    font-weight: bold;
+    background-color: rgba(80, 250, 123, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.event-group-incomplete {
+    border-left: 3px solid #ffc107;
+    background-color: rgba(255, 193, 7, 0.05) !important;
+}
+
+.event-group-incomplete .log-platform.warning {
+    color: #ffc107;
+    font-weight: bold;
+    background-color: rgba(255, 193, 7, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.event-group-completed .log-message strong {
+    color: #8be9fd;
 }
 
 .behavior-triggered .log-message strong {

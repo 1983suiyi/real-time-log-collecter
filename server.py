@@ -49,6 +49,10 @@ triggered_events = []       # 已触发的事件列表，用于顺序检查
 event_order_config = []     # 事件顺序配置（扁平列表）
 event_order_groups = []    # 事件顺序分组配置（二维数组）
 
+# 事件组检查相关变量
+event_group_config = []    # 事件组配置（二维数组）
+event_group_status = {}    # 事件组状态，记录每个组中已触发的事件
+
 # 配置管理相关函数
 def load_config():
     """
@@ -61,13 +65,15 @@ def load_config():
         behavior_config: 存储加载的行为配置
         event_order_config: 存储事件顺序配置（扁平列表）
         event_order_groups: 存储事件顺序分组配置（二维数组）
+        event_group_config: 存储事件组配置（二维数组）
+        event_group_status: 存储事件组状态
     
     异常处理:
         - 文件不存在或读取失败
         - YAML 解析错误
         - 配置结构验证失败
     """
-    global behavior_config, event_order_config, event_order_groups
+    global behavior_config, event_order_config, event_order_groups, event_group_config, event_group_status
     try:
         # 读取 YAML 配置文件
         with open('config.yaml', 'r', encoding='utf-8') as f:
@@ -93,6 +99,24 @@ def load_config():
                     event_order_config.append(item)
                     # 同时创建一个只包含这个事件的分组
                     event_order_groups.append([item])
+        
+        # 处理事件组配置
+        event_group_raw = config_data.get('event_group', [])
+        event_group_config = []
+        event_group_status = {}
+        
+        # 处理事件组配置
+        if event_group_raw and isinstance(event_group_raw, list):
+            for i, group in enumerate(event_group_raw):
+                if isinstance(group, list):
+                    event_group_config.append(group)
+                    # 初始化事件组状态，记录每个组中已触发的事件
+                    group_id = f'group_{i}'
+                    event_group_status[group_id] = {
+                        'events': group,
+                        'triggered': [],
+                        'completed': False
+                    }
 
         # 验证配置结构
         validate_config_structure(behavior_config)
@@ -102,6 +126,8 @@ def load_config():
         behavior_config = {'behaviors': []}
         event_order_config = []
         event_order_groups = []
+        event_group_config = []
+        event_group_status = {}
 
 def validate_config_structure(config):
     """
@@ -518,6 +544,30 @@ def reload_config():
         socketio.emit('log', {'platform': 'system', 'message': f'Error reloading configuration: {str(e)}'})
         return 'Error reloading configuration.', 500
 
+@app.route('/reset-event-order', methods=['POST'])
+def reset_event_order():
+    """
+    重置事件顺序追踪和事件组状态
+    
+    清空已触发的事件列表，重新开始事件顺序追踪。
+    重置所有事件组的状态。
+    用于手动重置事件顺序和事件组状态，而不影响其他日志收集功能。
+    
+    返回:
+        str: 操作结果消息
+        - 成功: 'Event tracking reset.' (HTTP 200)
+    """
+    global triggered_events, event_group_status
+    triggered_events = []
+    
+    # 重置所有事件组状态
+    for group_id in event_group_status:
+        event_group_status[group_id]['triggered'] = []
+        event_group_status[group_id]['completed'] = False
+    
+    socketio.emit('log', {'platform': 'system', 'message': 'Event tracking has been reset.'})
+    return 'Event tracking reset.', 200
+
 def analyze_log_behavior(log_message, platform):
     """
     分析日志消息是否匹配配置的行为模式
@@ -576,60 +626,96 @@ def analyze_log_behavior(log_message, platform):
                             'dataType': data_type
                         }
                 
-                # 检查事件顺序
-                global triggered_events, event_order_config, event_order_groups
+                # 检查事件顺序和事件组
+                global triggered_events, event_order_config, event_order_groups, event_group_config, event_group_status
                 behavior_name = behavior.get('name', '')
                 
-                # 如果当前行为在事件顺序配置中，则进行顺序检查
-                if behavior_name and behavior_name in event_order_config:
-                    # 将当前事件添加到已触发事件列表
-                    triggered_events.append(behavior_name)
+                if behavior_name:
+                    # 将当前事件添加到已触发事件列表（用于事件顺序检查）
+                    if behavior_name in event_order_config:
+                        triggered_events.append(behavior_name)
                     
                     # 检查事件顺序是否符合预期
                     event_order_violation = None
                     
-                    # 找出当前事件所在的分组
-                    for group in event_order_groups:
-                        if behavior_name in group:
-                            # 只在当前分组内检查顺序
-                            group_triggered_events = [event for event in triggered_events if event in group]
-                            
-                            # 在当前分组中的位置
-                            current_index_in_group = group.index(behavior_name)
-                            
-                            # 检查前面的事件是否都已触发
-                            for j in range(current_index_in_group):
-                                expected_event = group[j]
-                                if expected_event not in group_triggered_events:
-                                    event_order_violation = {
-                                        'current_event': behavior_name,
-                                        'missing_event': expected_event,
-                                        'message': f'事件 "{behavior_name}" 在 "{expected_event}" 之前触发，违反了预期顺序',
-                                        'group': group
-                                    }
+                    # 如果当前行为在事件顺序配置中，则进行顺序检查
+                    if behavior_name in event_order_config:
+                        # 找出当前事件所在的分组
+                        for group in event_order_groups:
+                            if behavior_name in group:
+                                # 只在当前分组内检查顺序
+                                group_triggered_events = [event for event in triggered_events if event in group]
+                                
+                                # 在当前分组中的位置
+                                current_index_in_group = group.index(behavior_name)
+                                
+                                # 检查前面的事件是否都已触发
+                                for j in range(current_index_in_group):
+                                    expected_event = group[j]
+                                    if expected_event not in group_triggered_events:
+                                        event_order_violation = {
+                                            'current_event': behavior_name,
+                                            'missing_event': expected_event,
+                                            'message': f'事件 "{behavior_name}" 在 "{expected_event}" 之前触发，违反了预期顺序',
+                                            'group': group
+                                        }
+                                        break
+                                
+                                # 如果在当前分组中发现违规，不再检查其他分组
+                                if event_order_violation:
                                     break
+                        
+                        # 如果检测到顺序违规，发送违规事件
+                        if event_order_violation:
+                            # 找出违规事件所在的分组
+                            violation_group = event_order_violation.get('group', [])
                             
-                            # 如果在当前分组中发现违规，不再检查其他分组
-                            if event_order_violation:
-                                break
+                            socketio.emit('event_order_violation', {
+                                'violation': event_order_violation,
+                                'current_order': triggered_events,
+                                'expected_order': violation_group,  # 只发送违规所在的分组
+                                'all_groups': event_order_groups    # 发送所有分组信息
+                            })
+                            
+                            # 同时发送系统日志
+                            socketio.emit('log', {
+                                'platform': 'system',
+                                'message': f'事件顺序违规: {event_order_violation["message"]}'
+                            })
                     
-                    # 如果检测到顺序违规，发送违规事件
-                    if event_order_violation:
-                        # 找出违规事件所在的分组
-                        violation_group = event_order_violation.get('group', [])
+                    # 检查事件组
+                    # 遍历所有事件组，检查当前事件是否属于某个组
+                    for group_id, group_info in event_group_status.items():
+                        events = group_info['events']
+                        triggered = group_info['triggered']
+                        completed = group_info['completed']
                         
-                        socketio.emit('event_order_violation', {
-                            'violation': event_order_violation,
-                            'current_order': triggered_events,
-                            'expected_order': violation_group,  # 只发送违规所在的分组
-                            'all_groups': event_order_groups    # 发送所有分组信息
-                        })
+                        # 如果事件组已完成，跳过检查
+                        if completed:
+                            continue
                         
-                        # 同时发送系统日志
-                        socketio.emit('log', {
-                            'platform': 'system',
-                            'message': f'事件顺序违规: {event_order_violation["message"]}'
-                        })
+                        # 如果当前事件在该组中且尚未被触发
+                        if behavior_name in events and behavior_name not in triggered:
+                            # 将当前事件添加到已触发事件列表
+                            triggered.append(behavior_name)
+                            
+                            # 检查该组是否所有事件都已触发
+                            if set(triggered) == set(events):
+                                # 标记该组为已完成
+                                event_group_status[group_id]['completed'] = True
+                                
+                                # 发送事件组完成通知
+                                socketio.emit('event_group_completed', {
+                                    'group_id': group_id,
+                                    'events': events,
+                                    'message': f'事件组 {group_id} 已完成，所有事件均已触发'
+                                })
+                                
+                                # 同时发送系统日志
+                                socketio.emit('log', {
+                                    'platform': 'system',
+                                    'message': f'事件组完成: 组 {group_id} 中的所有事件 ({", ".join(events)}) 均已触发'
+                                })
                 
                 # Emit behavior triggered event with enhanced data
                 # 创建行为触发事件数据
@@ -854,8 +940,9 @@ def get_command_path(command):
 
 @app.route('/start-log', methods=['POST'])
 def start_log():
-    global triggered_events
-    triggered_events = []
+    # 不应该在这里重置triggered_events，否则会导致event_order功能失效
+    # global triggered_events
+    # triggered_events = []
     """
     启动指定平台的日志收集
     
@@ -1051,10 +1138,11 @@ def start_log():
 @app.route('/stop-log', methods=['POST'])
 def stop_log():
     """
-    停止日志收集
+    停止日志收集并触发最终事件组检查
     
     终止当前运行的日志收集进程，包括主日志进程和可能的 grep 过滤进程。
     同时清理相关的线程资源，并通知前端日志收集已停止。
+    在停止日志收集时，会触发最终的事件组检查，确保所有已配置的事件组状态都被正确评估。
     
     返回:
         str: 操作结果消息
@@ -1064,18 +1152,42 @@ def stop_log():
     清理流程:
         1. 设置日志收集状态为非活跃
         2. 立即通知前端状态变更
-        3. 等待所有相关线程结束
-        4. 终止 grep 过滤进程（如果存在）
-        5. 终止主日志收集进程
-        6. 清理进程和线程资源
+        3. 触发最终事件组检查
+        4. 等待所有相关线程结束
+        5. 终止 grep 过滤进程（如果存在）
+        6. 终止主日志收集进程
+        7. 清理进程和线程资源
     """
-    global log_process, grep_process, logging_active, log_threads
+    global log_process, grep_process, logging_active, log_threads, event_group_config, event_group_status
     
     # 设置日志收集状态为非活跃，停止日志流处理
     logging_active = False
     
     # 立即向前端发送状态更新
     socketio.emit('logging_status', {'active': False})
+    
+    # 触发最终事件组检查
+    # 检查所有未完成的事件组，发送状态通知
+    for group_id, group_info in event_group_status.items():
+        if not group_info['completed']:
+            events = group_info['events']
+            triggered = group_info['triggered']
+            missing_events = [event for event in events if event not in triggered]
+            
+            # 发送事件组未完成通知
+            socketio.emit('event_group_incomplete', {
+                'group_id': group_id,
+                'events': events,
+                'triggered': triggered,
+                'missing_events': missing_events,
+                'message': f'事件组 {group_id} 未完成，缺少事件: {", ".join(missing_events)}'
+            })
+            
+            # 同时发送系统日志
+            socketio.emit('log', {
+                'platform': 'system',
+                'message': f'事件组 {group_id} 未完成，缺少事件: {", ".join(missing_events)}'
+            })
     
     stopped_processes = []
     

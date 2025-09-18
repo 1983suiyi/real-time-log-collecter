@@ -154,6 +154,26 @@ ws://localhost:3000/socket.io/
 - `expected_sequence`: 预期的事件顺序
 - `timestamp`: ISO 8601格式的时间戳
 
+#### 6. `event_group_completed`
+
+接收事件组完成通知。
+
+**数据格式**：
+```json
+{
+  "group_id": "group_0",
+  "events": ["登录", "主页加载", "用户信息获取"],
+  "message": "事件组 group_0 已完成，所有事件均已触发",
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+```
+
+**字段说明**：
+- `group_id`: 事件组ID
+- `events`: 该组中的所有事件
+- `message`: 完成消息
+- `timestamp`: ISO 8601格式的时间戳
+
 ### 客户端发送事件
 
 #### 1. `connect`
