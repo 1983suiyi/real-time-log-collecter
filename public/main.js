@@ -439,17 +439,29 @@ document.addEventListener('DOMContentLoaded', () => {
             filename = `behavior_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
             
             // 创建CSV内容
-            let csvContent = 'Timestamp,Type,Name,Description,Message,Current Event,Missing Event\n';
+            let csvContent = 'Timestamp,Type,Name,Description,Message,Current Event,Missing Event,Group ID,Events,Triggered Events\n';
             dataToExport.forEach(log => {
                 if (log.type === 'behavior_triggered') {
                     // 处理CSV中的特殊字符
                     const description = log.description.replace(/"/g, '""').replace(/\n/g, ' ');
                     const logText = log.log.replace(/"/g, '""').replace(/\n/g, ' ');
-                    csvContent += `"${log.timestamp}","${log.type}","${log.name}","${description}","${logText}","",""\n`;
+                    csvContent += `"${log.timestamp}","${log.type}","${log.name}","${description}","${logText}","","","","",""\n`;
                 } else if (log.type === 'event_order_violation') {
                     // 处理CSV中的特殊字符
                     const message = log.message.replace(/"/g, '""').replace(/\n/g, ' ');
-                    csvContent += `"${log.timestamp}","${log.type}","","","${message}","${log.current_event}","${log.missing_event}"\n`;
+                    csvContent += `"${log.timestamp}","${log.type}","","","${message}","${log.current_event}","${log.missing_event}","","",""\n`;
+                } else if (log.type === 'event_group_completed') {
+                    // 处理CSV中的特殊字符
+                    const message = log.message.replace(/"/g, '""').replace(/\n/g, ' ');
+                    const events = log.events ? log.events.join(', ').replace(/"/g, '""') : '';
+                    csvContent += `"${log.timestamp}","${log.type}","","","${message}","","","${log.group_id}","${events}",""\n`;
+                } else if (log.type === 'event_group_incomplete') {
+                    // 处理CSV中的特殊字符
+                    const message = log.message.replace(/"/g, '""').replace(/\n/g, ' ');
+                    const events = log.events ? log.events.join(', ').replace(/"/g, '""') : '';
+                    const triggered = log.triggered ? log.triggered.join(', ').replace(/"/g, '""') : '';
+                    const missing = log.missing_events ? log.missing_events.join(', ').replace(/"/g, '""') : '';
+                    csvContent += `"${log.timestamp}","${log.type}","","","${message}","","${missing}","${log.group_id}","${events}","${triggered}"\n`;
                 }
             });
             
@@ -605,6 +617,32 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <td>${new Date(log.timestamp).toLocaleString()}</td>
                                 <td>${log.group_id}</td>
                                 <td>${log.events.join(', ')}</td>
+                                <td>${log.message}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ` : ''}
+                
+                ${dataToExport.filter(log => log.type === 'event_group_incomplete').length > 0 ? `
+                <h2>事件组未完成详情</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>事件组</th>
+                            <th>已触发事件</th>
+                            <th>缺失事件</th>
+                            <th>消息</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dataToExport.filter(log => log.type === 'event_group_incomplete').map(log => `
+                            <tr class="warning">
+                                <td>${new Date(log.timestamp).toLocaleString()}</td>
+                                <td>${log.group_id}</td>
+                                <td>${log.triggered.join(', ') || '无'}</td>
+                                <td>${log.missing_events.join(', ')}</td>
                                 <td>${log.message}</td>
                             </tr>
                         `).join('')}
@@ -775,6 +813,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 .violation {
                     color: #f44336;
                     background-color: rgba(244, 67, 54, 0.05);
+                }
+                .warning {
+                    color: #ffc107;
+                    background-color: rgba(255, 193, 7, 0.05);
+                }
+                .success {
+                    color: #28a745;
+                    background-color: rgba(40, 167, 69, 0.05);
                 }
                 .error {
                     color: #f44336;
