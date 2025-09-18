@@ -464,6 +464,73 @@ def static_files(filename):
     """
     return send_from_directory('public', filename)
 
+@app.route('/import-log', methods=['POST'])
+def import_log():
+    """
+    导入日志文件进行解析
+    
+    接收前端上传的日志文件内容，按行解析并应用当前配置的行为模式，
+    将解析结果通过WebSocket发送到前端。
+    
+    请求体:
+        JSON: {
+            'filename': str,  # 文件名
+            'content': str,   # 文件内容
+            'platform': str   # 平台类型 ('android', 'ios', 'harmonyos')
+        }
+    
+    返回:
+        JSON: {
+            'success': bool,   # 操作是否成功
+            'lineCount': int,  # 解析的日志行数
+            'message': str     # 结果消息
+        }
+    """
+    try:
+        # 解析请求数据
+        data = request.get_json()
+        if not data or 'content' not in data or 'platform' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid request data. Missing content or platform.'
+            }), 400
+            
+        filename = data.get('filename', 'imported_log.txt')
+        content = data.get('content')
+        platform = data.get('platform')
+        
+        # 通知前端开始导入
+        socketio.emit('log', {'platform': 'system', 'message': f'开始导入日志文件: {filename}'})
+        
+        # 按行处理日志内容
+        lines = content.splitlines()
+        line_count = 0
+        
+        for line in lines:
+            if line.strip():
+                line_count += 1
+                # 发送日志到前端
+                socketio.emit('log', {'platform': platform, 'message': line.strip()})
+                # 分析行为模式
+                analyze_log_behavior(line.strip(), platform)
+        
+        # 通知前端导入完成
+        socketio.emit('log', {'platform': 'system', 'message': f'日志文件导入完成: {filename}, 共 {line_count} 行'})
+        
+        return jsonify({
+            'success': True,
+            'lineCount': line_count,
+            'message': f'Successfully imported {line_count} lines from {filename}'
+        })
+        
+    except Exception as e:
+        error_message = f'导入日志文件失败: {str(e)}'
+        socketio.emit('log', {'platform': 'system', 'message': error_message})
+        return jsonify({
+            'success': False,
+            'message': error_message
+        }), 500
+
 # API 端点
 @app.route('/config', methods=['GET'])
 def get_config():

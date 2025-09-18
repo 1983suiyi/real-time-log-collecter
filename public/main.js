@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isLogging = false; // 跟踪日志状态
     const clearLogsButton = document.getElementById('clear-logs');
     const configUploadInput = document.getElementById('config-upload');
+    const importLogFileInput = document.getElementById('import-log-file');
     const manageConfigButton = document.getElementById('manage-config');
     const configModal = document.getElementById('config-modal');
     const configEditor = document.getElementById('config-editor');
@@ -80,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // reloadConfigButton has been removed
 
+    // 配置文件上传处理
+    // 配置文件上传处理
     configUploadInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) {
@@ -113,6 +116,58 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsText(file);
     });
+                
+    // 导入日志文件处理
+    importLogFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+        
+        // 显示加载中提示
+        addLogMessage({ platform: 'system', message: `正在导入日志文件: ${file.name}...` });
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            
+            // 发送日志内容到服务器进行解析
+            fetch('/import-log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: file.name,
+                    content: content,
+                    platform: platformSelector.value // 使用当前选择的平台
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`导入失败: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // 显示导入成功消息
+                addLogMessage({ platform: 'system', message: `成功导入日志文件: ${file.name}, 共解析 ${data.lineCount} 行` });
+                
+                // 切换到日志标签页
+                document.querySelector('.tab-button[data-tab="log-container"]').click();
+                
+                // 清空文件输入，允许再次选择同一文件
+                importLogFileInput.value = '';
+            })
+            .catch(error => {
+                 addLogMessage({ platform: 'system', message: `导入日志文件错误: ${error.message}` });
+                 importLogFileInput.value = '';
+             });
+        };
+        reader.readAsText(file);
+    });
+    
+    // 重复的configUploadInput事件监听器已删除
 
     const addLogMessage = (log) => {
         const { platform, message } = log;
