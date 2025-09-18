@@ -808,18 +808,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     color: #666;
                 }
                 .behavior {
-                    color: #ff9800;
+                    color: #333; /* 正常事件文字颜色改为黑色 */
                 }
                 .violation {
-                    color: #f44336;
+                    color: #f44336; /* 失败或异常事件文字改为红色 */
                     background-color: rgba(244, 67, 54, 0.05);
                 }
                 .warning {
-                    color: #ffc107;
+                    color: #f44336; /* 失败或异常事件文字改为红色 */
                     background-color: rgba(255, 193, 7, 0.05);
                 }
                 .success {
-                    color: #28a745;
+                    color: #333; /* 正常事件文字颜色改为黑色 */
                     background-color: rgba(40, 167, 69, 0.05);
                 }
                 .error {
