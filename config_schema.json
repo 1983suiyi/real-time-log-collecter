@@ -176,12 +176,35 @@
       "type": "array",
       "description": "Defines groups of events that must all be triggered (in any order) for the group to be considered complete",
       "items": {
-        "type": "array",
-        "description": "A group of behaviors that must all be triggered (in any order)",
-        "items": {
-          "type": "string",
-          "description": "The name of the behavior"
-        }
+        "oneOf": [
+          {
+            "type": "array",
+            "description": "A group of behaviors that must all be triggered (in any order)",
+            "items": {
+              "type": "string",
+              "description": "The name of the behavior"
+            }
+          },
+          {
+            "type": "object",
+            "description": "A named group of behaviors that must all be triggered (in any order)",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the event group"
+              },
+              "events": {
+                "type": "array",
+                "description": "List of behavior names in this group",
+                "items": {
+                  "type": "string",
+                  "description": "The name of the behavior"
+                }
+              }
+            },
+            "required": ["events"]
+          }
+        ]
       }
     }
   },

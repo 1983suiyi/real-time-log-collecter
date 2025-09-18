@@ -267,14 +267,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 处理事件组完成事件
     socket.on('event_group_completed', (data) => {
-        const { group_id, events, message } = data;
+        const { group_id, group_name, events, message } = data;
         const completedEntry = document.createElement('div');
         completedEntry.className = 'log-entry event-group-completed';
         
         completedEntry.innerHTML = `
             <span class="log-platform success">[事件组完成]</span>
             <span class="log-message">
-                <strong>事件组:</strong> ${group_id}<br>
+                <strong>事件组:</strong> ${data.group_name || group_id}<br>
                 <strong>完成事件:</strong> ${events.join(', ')}<br>
                 <strong>消息:</strong> ${message}
             </span>
@@ -291,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
             timestamp,
             type: 'event_group_completed',
             group_id: group_id,
+            group_name: group_name,
             events: events,
             message: message
         });
@@ -298,14 +299,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 处理事件组未完成事件
     socket.on('event_group_incomplete', (data) => {
-        const { group_id, events, triggered, missing_events, message } = data;
+        const { group_id, group_name, events, triggered, missing_events, message } = data;
         const incompleteEntry = document.createElement('div');
         incompleteEntry.className = 'log-entry event-group-incomplete';
         
         incompleteEntry.innerHTML = `
             <span class="log-platform warning">[事件组未完成]</span>
             <span class="log-message">
-                <strong>事件组:</strong> ${group_id}<br>
+                <strong>事件组:</strong> ${data.group_name || group_id}<br>
                 <strong>已触发事件:</strong> ${triggered.join(', ') || '无'}<br>
                 <strong>缺失事件:</strong> ${missing_events.join(', ')}<br>
                 <strong>消息:</strong> ${message}
@@ -323,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             timestamp,
             type: 'event_group_incomplete',
             group_id: group_id,
+            group_name: group_name,
             events: events,
             triggered: triggered,
             missing_events: missing_events,
@@ -587,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <td>${log.current_order.join(' → ')}</td>
                                 <td>${log.expected_order.join(' → ')}</td>
                                 <td>
+                                    ${log.group_name ? `<div class="violation-group">${log.group_name}</div>` : ''}
                                     ${log.all_groups ? log.all_groups.map((group, index) => {
                                         const isViolationGroup = group.includes(log.current_event);
                                         return `<div class="${isViolationGroup ? 'violation-group' : ''}">
@@ -615,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${dataToExport.filter(log => log.type === 'event_group_completed').map(log => `
                             <tr class="success">
                                 <td>${new Date(log.timestamp).toLocaleString()}</td>
-                                <td>${log.group_id}</td>
+                                <td>${log.group_name || log.group_id}</td>
                                 <td>${log.events.join(', ')}</td>
                                 <td>${log.message}</td>
                             </tr>
@@ -640,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${dataToExport.filter(log => log.type === 'event_group_incomplete').map(log => `
                             <tr class="warning">
                                 <td>${new Date(log.timestamp).toLocaleString()}</td>
-                                <td>${log.group_id}</td>
+                                <td>${log.group_name || log.group_id}</td>
                                 <td>${log.triggered.join(', ') || '无'}</td>
                                 <td>${log.missing_events.join(', ')}</td>
                                 <td>${log.message}</td>

@@ -108,14 +108,40 @@ def load_config():
         # 处理事件组配置
         if event_group_raw and isinstance(event_group_raw, list):
             for i, group in enumerate(event_group_raw):
-                if isinstance(group, list):
+                # 处理新格式的事件组配置（带有name和events字段）
+                if isinstance(group, dict) and 'events' in group:
+                    events = group['events']
+                    event_group_config.append(events)
+                    # 初始化事件组状态，记录每个组中已触发的事件
+                    group_id = f'group_{i}'
+                    # 使用配置中的名称，如果没有则生成一个
+                    if 'name' in group and group['name']:
+                        group_name = group['name']
+                    else:
+                        # 生成事件组名称，使用组内事件名称的组合
+                        group_name = "事件组: " + ", ".join([event[:10] + "..." if len(event) > 10 else event for event in events[:2]])
+                        if len(events) > 2:
+                            group_name += f" 等{len(events)}个事件"
+                    event_group_status[group_id] = {
+                        'events': events,
+                        'triggered': [],
+                        'completed': False,
+                        'name': group_name
+                    }
+                # 处理旧格式的事件组配置（直接是事件列表）
+                elif isinstance(group, list):
                     event_group_config.append(group)
                     # 初始化事件组状态，记录每个组中已触发的事件
                     group_id = f'group_{i}'
+                    # 生成事件组名称，使用组内事件名称的组合
+                    group_name = "事件组: " + ", ".join([event[:10] + "..." if len(event) > 10 else event for event in group[:2]])
+                    if len(group) > 2:
+                        group_name += f" 等{len(group)}个事件"
                     event_group_status[group_id] = {
                         'events': group,
                         'triggered': [],
-                        'completed': False
+                        'completed': False,
+                        'name': group_name
                     }
 
         # 验证配置结构
@@ -670,17 +696,30 @@ def analyze_log_behavior(log_message, platform):
                             # 找出违规事件所在的分组
                             violation_group = event_order_violation.get('group', [])
                             
+                            # 为违规分组生成名称
+                            group_index = -1
+                            for i, group in enumerate(event_order_groups):
+                                if group == violation_group:
+                                    group_index = i
+                                    break
+                            
+                            group_name = "顺序组: " + ", ".join([event[:10] + "..." if len(event) > 10 else event for event in violation_group[:2]])
+                            if len(violation_group) > 2:
+                                group_name += f" 等{len(violation_group)}个事件"
+                            
                             socketio.emit('event_order_violation', {
                                 'violation': event_order_violation,
                                 'current_order': triggered_events,
                                 'expected_order': violation_group,  # 只发送违规所在的分组
-                                'all_groups': event_order_groups    # 发送所有分组信息
+                                'all_groups': event_order_groups,   # 发送所有分组信息
+                                'group_name': group_name,           # 添加分组名称
+                                'group_index': group_index          # 添加分组索引
                             })
                             
                             # 同时发送系统日志
                             socketio.emit('log', {
                                 'platform': 'system',
-                                'message': f'事件顺序违规: {event_order_violation["message"]}'
+                                'message': f'事件顺序违规: {event_order_violation["message"]} (在{group_name})'
                             })
                     
                     # 检查事件组
@@ -704,17 +743,21 @@ def analyze_log_behavior(log_message, platform):
                                 # 标记该组为已完成
                                 event_group_status[group_id]['completed'] = True
                                 
+                                # 获取事件组名称
+                                group_name = group_info.get('name', f'事件组 {group_id}')
+                                
                                 # 发送事件组完成通知
                                 socketio.emit('event_group_completed', {
                                     'group_id': group_id,
+                                    'group_name': group_name,
                                     'events': events,
-                                    'message': f'事件组 {group_id} 已完成，所有事件均已触发'
+                                    'message': f'{group_name} 已完成，所有事件均已触发'
                                 })
                                 
                                 # 同时发送系统日志
                                 socketio.emit('log', {
                                     'platform': 'system',
-                                    'message': f'事件组完成: 组 {group_id} 中的所有事件 ({", ".join(events)}) 均已触发'
+                                    'message': f'事件组完成: {group_name} 中的所有事件 ({", ".join(events)}) 均已触发'
                                 })
                 
                 # Emit behavior triggered event with enhanced data
@@ -1174,19 +1217,23 @@ def stop_log():
             triggered = group_info['triggered']
             missing_events = [event for event in events if event not in triggered]
             
+            # 获取事件组名称
+            group_name = group_info.get('name', f'事件组 {group_id}')
+            
             # 发送事件组未完成通知
             socketio.emit('event_group_incomplete', {
                 'group_id': group_id,
+                'group_name': group_name,
                 'events': events,
                 'triggered': triggered,
                 'missing_events': missing_events,
-                'message': f'事件组 {group_id} 未完成，缺少事件: {", ".join(missing_events)}'
+                'message': f'{group_name} 未完成，缺少事件: {", ".join(missing_events)}'
             })
             
             # 同时发送系统日志
             socketio.emit('log', {
                 'platform': 'system',
-                'message': f'事件组 {group_id} 未完成，缺少事件: {", ".join(missing_events)}'
+                'message': f'{group_name} 未完成，缺少事件: {", ".join(missing_events)}'
             })
     
     stopped_processes = []

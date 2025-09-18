@@ -68,13 +68,17 @@ behaviors:
   pattern: .*error_state:\s*(true|false)
   priority: 9
 event_group:
-- - SDK 初始化成功
+- events:
+  - SDK 初始化成功
   - TGA 会话开启
   - TGA 会话关闭
   - TGA 会话关闭啊
-- - SDK 初始化成功
+  name: TGA会话流程组
+- events:
+  - SDK 初始化成功
   - BI 会话开启
   - BI 会话结束
+  name: BI会话流程组
 globalSettings:
   enableRealTimeValidation: true
   maxLogHistory: 1000
