@@ -514,8 +514,15 @@ def import_log():
                 # 分析行为模式
                 analyze_log_behavior(line.strip(), platform)
         
+        # 执行最终检查
+        final_check_results = perform_final_check(lines, platform)
+        
         # 通知前端导入完成
         socketio.emit('log', {'platform': 'system', 'message': f'日志文件导入完成: {filename}, 共 {line_count} 行'})
+        
+        # 发送最终检查结果
+        if final_check_results:
+            socketio.emit('log', {'platform': 'system', 'message': f'最终检查结果: {final_check_results["message"]}'})            
         
         return jsonify({
             'success': True,
@@ -660,6 +667,128 @@ def reset_event_order():
     
     socketio.emit('log', {'platform': 'system', 'message': 'Event tracking has been reset.'})
     return 'Event tracking reset.', 200
+
+def perform_final_check(log_lines, platform):
+    """
+    对导入的日志文件进行最终检查
+    
+    在所有日志行处理完成后执行，检查以下内容：
+    1. 必要的事件是否都已触发
+    2. 是否存在关键错误
+    3. 事件顺序是否符合预期
+    4. 事件组是否完整
+    
+    参数:
+        log_lines (list): 所有日志行
+        platform (str): 日志来源平台
+        
+    返回:
+        dict: 检查结果，包含状态和消息
+    """
+    results = {
+        'status': 'success',
+        'message': '最终检查通过，未发现问题',
+        'details': []
+    }
+    
+    # 检查必要事件是否都已触发
+    required_events = []
+    for behavior in behavior_config.get('behaviors', []):
+        if behavior.get('required', False) and behavior.get('name'):
+            required_events.append(behavior.get('name'))
+    
+    missing_events = [event for event in required_events if event not in triggered_events]
+    if missing_events:
+        results['status'] = 'warning'
+        warning_msg = f'缺少必要事件: {", ".join(missing_events)}'
+        results['message'] = warning_msg
+        results['details'].append({
+            'type': 'missing_required_events',
+            'events': missing_events
+        })
+        socketio.emit('log', {'platform': 'system', 'message': f'警告: {warning_msg}'})
+    
+    # 检查是否存在关键错误
+    error_count = 0
+    for line in log_lines:
+        if '[ERROR]' in line or 'Exception' in line or 'Error:' in line:
+            error_count += 1
+    
+    if error_count > 0:
+        if results['status'] == 'success':
+            results['status'] = 'warning'
+            results['message'] = f'发现 {error_count} 个可能的错误'
+        else:
+            results['message'] += f'，并且发现 {error_count} 个可能的错误'
+        
+        results['details'].append({
+            'type': 'error_logs',
+            'count': error_count
+        })
+    
+    # 检查事件顺序违规
+    order_violations = []
+    for i, group in enumerate(event_order_groups):
+        # 找出在当前组中已触发的事件
+        triggered_in_group = [event for event in triggered_events if event in group]
+        
+        # 检查顺序
+        for j in range(len(triggered_in_group) - 1):
+            current_event = triggered_in_group[j]
+            next_event = triggered_in_group[j + 1]
+            
+            # 在原始组中的索引
+            current_index = group.index(current_event)
+            next_index = group.index(next_event)
+            
+            if current_index > next_index:
+                order_violations.append({
+                    'group': i,
+                    'events': [current_event, next_event],
+                    'message': f'事件 "{next_event}" 应该在 "{current_event}" 之前触发'
+                })
+    
+    if order_violations:
+        if results['status'] == 'success':
+            results['status'] = 'warning'
+            results['message'] = f'发现 {len(order_violations)} 个事件顺序违规'
+        else:
+            results['message'] += f'，并且发现 {len(order_violations)} 个事件顺序违规'
+        
+        results['details'].append({
+            'type': 'order_violations',
+            'violations': order_violations
+        })
+    
+    # 检查事件组完整性
+    incomplete_groups = []
+    for group_id, group_info in event_group_status.items():
+        if not group_info['completed'] and len(group_info['triggered']) > 0:
+            missing = [event for event in group_info['events'] if event not in group_info['triggered']]
+            incomplete_groups.append({
+                'group_id': group_id,
+                'group_name': group_info.get('name', f'事件组 {group_id}'),
+                'missing': missing,
+                'triggered': group_info['triggered']
+            })
+    
+    if incomplete_groups:
+        if results['status'] == 'success':
+            results['status'] = 'warning'
+            results['message'] = f'发现 {len(incomplete_groups)} 个不完整的事件组'
+        else:
+            results['message'] += f'，并且发现 {len(incomplete_groups)} 个不完整的事件组'
+        
+        results['details'].append({
+            'type': 'incomplete_groups',
+            'groups': incomplete_groups
+        })
+    
+    # 发送最终检查结果事件
+    socketio.emit('final_check_results', results)
+    
+    return results
+
 
 def analyze_log_behavior(log_message, platform):
     """

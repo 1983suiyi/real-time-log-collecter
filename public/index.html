@@ -9,29 +9,42 @@
 <body>
     <div class="container">
         <header>
-            <h1>Real-time Log Viewer</h1>
-            <div class="status-bar">
-                <span id="loggingStatus" class="status-inactive">日志收集已停止</span>
+            <div class="header-top">
+                <h1>Real-time Log Viewer</h1>
+                <div class="status-bar">
+                    <span id="loggingStatus" class="status-inactive">日志收集已停止</span>
+                </div>
             </div>
-            <div class="filters">
-                <select id="platform-filter">
-                    <option value="android">Android</option>
-                    <option value="ios">iOS</option>
-                    <option value="harmonyos">HarmonyOS</option>
-                </select>
-                <input type="text" id="tag-filter" placeholder="Enter tag to filter..." list="tag-history">
-                <datalist id="tag-history"></datalist>
-                <button id="toggle-log">Start Logging</button>
-                <button id="clear-logs">Clear Logs</button>
-                <label for="config-upload" class="button-like">Load YAML Config</label>
-                <input type="file" id="config-upload" accept=".yaml, .yml" style="display: none;">
-            </div>
-            <div class="export-buttons">
-                <button id="export-csv">导出CSV</button>
-                <button id="export-html">导出HTML报告</button>
-                <button id="reset-event-order">重置事件顺序</button>
-                <label for="import-log-file" class="button-like">导入日志文件</label>
-                <input type="file" id="import-log-file" accept=".log, .txt" style="display: none;">
+            
+            <div class="control-panel">
+                <div class="control-section">
+                    <h3>日志控制</h3>
+                    <div class="filters">
+                        <select id="platform-filter">
+                            <option value="android">Android</option>
+                            <option value="ios">iOS</option>
+                            <option value="harmonyos">HarmonyOS</option>
+                        </select>
+                        <input type="text" id="tag-filter" placeholder="Enter tag to filter..." list="tag-history">
+                        <datalist id="tag-history"></datalist>
+                        <button id="toggle-log">Start Logging</button>
+                        <button id="clear-logs">Clear Logs</button>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <h3>导入导出</h3>
+                    <div class="export-buttons">
+                        <button id="export-csv">导出CSV</button>
+                        <button id="export-html">导出HTML报告</button>
+                        <button id="export-log-file">导出日志文件</button>
+                        <button id="reset-event-order">重置事件顺序</button>
+                        <label for="config-upload" class="button-like">加载配置</label>
+                        <input type="file" id="config-upload" accept=".yaml, .yml" style="display: none;">
+                        <label for="import-log-file" class="button-like">导入日志</label>
+                        <input type="file" id="import-log-file" accept=".log, .txt" style="display: none;">
+                    </div>
+                </div>
             </div>
         </header>
         <div class="logs-wrapper">

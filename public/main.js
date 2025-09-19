@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabButtons = document.querySelectorAll('.tab-button');
     const exportCsvButton = document.getElementById('export-csv');
     const exportHtmlButton = document.getElementById('export-html');
+    const exportLogFileButton = document.getElementById('export-log-file');
     const resetEventOrderButton = document.getElementById('reset-event-order');
     
     // 存储所有日志和行为日志的数组，用于导出功能
@@ -350,6 +351,78 @@ document.addEventListener('DOMContentLoaded', () => {
             events: events,
             message: message
         });
+    });
+    
+    // 监听最终检查结果事件
+    socket.on('final_check_results', (results) => {
+        // 创建结果摘要
+        let summaryClass = results.status === 'success' ? 'success' : 'warning';
+        let summaryMessage = `<div class="check-result ${summaryClass}">
+            <h4>日志文件最终检查结果</h4>
+            <p>${results.message}</p>
+        </div>`;
+        
+        // 如果有详细信息，添加到摘要中
+        if (results.details && results.details.length > 0) {
+            summaryMessage += '<div class="check-details">';
+            
+            // 处理缺失的必要事件
+            const missingEvents = results.details.find(d => d.type === 'missing_required_events');
+            if (missingEvents) {
+                summaryMessage += `<div class="detail-item">
+                    <h5>缺失的必要事件:</h5>
+                    <ul>
+                        ${missingEvents.events.map(e => `<li>${e}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            
+            // 处理错误日志
+            const errorLogs = results.details.find(d => d.type === 'error_logs');
+            if (errorLogs) {
+                summaryMessage += `<div class="detail-item">
+                    <h5>错误日志:</h5>
+                    <p>发现 ${errorLogs.count} 个可能的错误</p>
+                </div>`;
+            }
+            
+            // 处理顺序违规
+            const orderViolations = results.details.find(d => d.type === 'order_violations');
+            if (orderViolations) {
+                summaryMessage += `<div class="detail-item">
+                    <h5>事件顺序违规:</h5>
+                    <ul>
+                        ${orderViolations.violations.map(v => `<li>${v.message}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            
+            // 处理不完整的事件组
+            const incompleteGroups = results.details.find(d => d.type === 'incomplete_groups');
+            if (incompleteGroups) {
+                summaryMessage += `<div class="detail-item">
+                    <h5>不完整的事件组:</h5>
+                    <ul>
+                        ${incompleteGroups.groups.map(g => `<li>${g.group_name}: 缺少 ${g.missing.join(', ')}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            
+            summaryMessage += '</div>';
+        }
+        
+        // 显示检查结果
+        const resultContainer = document.createElement('div');
+        resultContainer.className = 'final-check-container';
+        resultContainer.innerHTML = summaryMessage;
+        
+        // 添加到日志容器中
+        behaviorLogContainer.appendChild(resultContainer);
+        
+        // 滚动到底部
+        if (isAutoScrollEnabled) {
+            behaviorLogContainer.scrollTop = behaviorLogContainer.scrollHeight;
+        }
     });
     
     // 处理事件组未完成事件
@@ -978,6 +1051,56 @@ document.addEventListener('DOMContentLoaded', () => {
         </html>
         `;
     }
+    
+    // 导出日志文件功能
+    exportLogFileButton.addEventListener('click', () => {
+        // 确定当前激活的标签页
+        const activeTab = document.querySelector('.tab-button.active').getAttribute('data-tab');
+        let dataToExport = [];
+        let filename = '';
+        let content = '';
+        
+        if (activeTab === 'log-container') {
+            // 导出系统日志
+            dataToExport = allLogs;
+            filename = `system_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+            
+            // 创建日志文件内容
+            content = dataToExport.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                return `[${timestamp}] [${log.platform}] ${log.message}`;
+            }).join('\n');
+        } else if (activeTab === 'behavior-log-container') {
+            // 导出行为日志
+            dataToExport = allBehaviorLogs;
+            filename = `behavior_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+            
+            // 创建行为日志文件内容
+            content = dataToExport.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                if (log.type === 'behavior_triggered') {
+                    return `[${timestamp}] [${log.type}] 行为名称: ${log.name}\n描述: ${log.description}\n日志: ${log.log}`;
+                } else if (log.type === 'event_order_violation') {
+                    return `[${timestamp}] [${log.type}] ${log.message}\n当前事件: ${log.current_event}\n缺失事件: ${log.missing_event}`;
+                } else if (log.type === 'event_group_completed') {
+                    const events = log.events ? log.events.join(', ') : '';
+                    return `[${timestamp}] [${log.type}] ${log.message}\n组ID: ${log.group_id}\n事件: ${events}`;
+                } else if (log.type === 'event_group_incomplete') {
+                    const events = log.events ? log.events.join(', ') : '';
+                    const triggered = log.triggered ? log.triggered.join(', ') : '';
+                    const missing = log.missing_events ? log.missing_events.join(', ') : '';
+                    return `[${timestamp}] [${log.type}] ${log.message}\n组ID: ${log.group_id}\n事件: ${events}\n已触发: ${triggered}\n缺失: ${missing}`;
+                }
+                return `[${timestamp}] [${log.type}] ${JSON.stringify(log)}`;
+            }).join('\n\n');
+        }
+        
+        // 创建并下载日志文件
+        if (content) {
+            downloadFile(content, filename, 'text/plain');
+            addLogMessage({ platform: 'system', message: `已导出日志文件: ${filename}` });
+        }
+    });
     
     // 通用文件下载函数
     function downloadFile(content, filename, contentType) {
