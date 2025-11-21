@@ -68,3 +68,4 @@ tools/*.dll
 # Trae AI folder
 .trae/
 .trae/*
+Config/

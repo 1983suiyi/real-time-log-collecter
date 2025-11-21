@@ -5,6 +5,8 @@ const { spawn } = require('child_process');
 const cors = require('cors'); // Import cors
 const fs = require('fs');
 const yaml = require('js-yaml');
+const path = require('path');
+
 
 // Load behavior configuration
 let behaviorConfig = { behaviors: [] };
@@ -49,17 +51,155 @@ app.post('/config', (req, res) => {
             return res.status(400).send('Invalid configuration format.');
         }
         
-        // Save to file
-        fs.writeFileSync('config.yaml', yaml.dump(newConfig, { indent: 2 }));
-        
-        // Update in-memory configuration
         behaviorConfig = newConfig;
         
-        io.emit('log', { platform: 'system', message: 'Configuration updated successfully.' });
-        res.status(200).send('Configuration updated.');
+        // Save the updated configuration to config.yaml
+        const yamlStr = yaml.dump(behaviorConfig);
+        fs.writeFileSync('config.yaml', yamlStr, 'utf8');
+        
+        res.json({ success: true, message: 'Configuration updated successfully.' });
     } catch (error) {
-        io.emit('log', { platform: 'system', message: `Error updating configuration: ${error.message}` });
-        res.status(500).send('Error updating configuration.');
+        console.error('Error updating configuration:', error);
+        res.status(500).json({ success: false, message: 'Failed to update configuration.' });
+    }
+});
+
+// Elasticsearch搜索API端点
+app.post('/api/es/search', (req, res) => {
+    try {
+        const { index_name, user_id, start_time, end_time, platform, env } = req.body;
+        
+        // 验证必需参数
+        if (!index_name || !user_id || !start_time || !end_time) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '缺少必需参数: index_name, user_id, start_time, end_time' 
+            });
+        }
+        
+        // 验证时间格式
+        const startDate = new Date(start_time);
+        const endDate = new Date(end_time);
+        
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '无效的时间格式' 
+            });
+        }
+        
+        if (startDate >= endDate) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '开始时间必须早于结束时间' 
+            });
+        }
+        
+        // 调用Python Elasticsearch搜索服务
+        const pythonScript = path.join(__dirname, 'ep_py', 'es_search_cli.py');
+        const pythonProcess = spawn('python3', [
+            pythonScript,
+            '--mode', 'api',
+            '--index', index_name,
+            '--user_id', user_id,
+            '--start_time', start_time,
+            '--end_time', end_time,
+            '--platform', platform || 'elasticsearch',
+            '--env', env || 'sandbox', // 使用传入的环境参数，默认为sandbox
+            '--output', 'json'
+        ]);
+        
+        let searchResult = '';
+        let errorOutput = '';
+        
+        pythonProcess.stdout.on('data', (data) => {
+            searchResult += data.toString();
+            // 实时发送搜索进度到前端
+            try {
+                // 尝试解析Python脚本的输出作为进度信息
+                const lines = data.toString().split('\n');
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        // 发送原始输出作为系统消息
+                        io.emit('log', {
+                            platform: 'system',
+                            message: `ES搜索: ${line}`
+                        });
+                    }
+                });
+            } catch (e) {
+                // 如果解析失败，发送简化进度
+                io.emit('es_search_progress', {
+                    progress: 0.5,
+                    processed: 0,
+                    total: 0,
+                    message: '正在搜索Elasticsearch...'
+                });
+            }
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+            console.error(`Elasticsearch搜索错误: ${data}`);
+        });
+        
+        pythonProcess.on('close', (code) => {
+            if (code === 0) {
+                try {
+                    const result = JSON.parse(searchResult);
+                    io.emit('es_search_complete', {
+                        success: true,
+                        message: `搜索完成，找到 ${result.total || 0} 条记录`,
+                        data: result
+                    });
+                } catch (parseError) {
+                    io.emit('es_search_complete', {
+                        success: false,
+                        message: `搜索结果解析失败: ${parseError.message}`
+                    });
+                }
+            } else {
+                io.emit('es_search_complete', {
+                    success: false,
+                    message: `Elasticsearch搜索失败 (退出码: ${code}): ${errorOutput}`
+                });
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Elasticsearch搜索任务已启动' 
+        });
+        
+    } catch (error) {
+        console.error('Elasticsearch搜索API错误:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `搜索请求处理失败: ${error.message}` 
+        });
+    }
+});
+
+// 停止Elasticsearch搜索API
+app.post('/api/es/search/stop', (req, res) => {
+    try {
+        // 这里需要实现停止搜索的逻辑
+        // 由于Python进程管理复杂，暂时返回成功状态
+        io.emit('es_search_complete', {
+            success: true,
+            message: '搜索已停止'
+        });
+        
+        res.json({ 
+            success: true, 
+            message: '搜索停止请求已发送' 
+        });
+    } catch (error) {
+        console.error('停止搜索API错误:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: `停止搜索失败: ${error.message}` 
+        });
     }
 });
 

@@ -29,6 +29,12 @@ from flask_cors import CORS
 import jsonschema
 from jsonschema import validate, ValidationError
 
+# 导入Elasticsearch搜索服务
+from ep_py.es_search_service import get_es_search_service
+
+# Elasticsearch搜索服务实例
+es_search_service = None
+
 # Flask 应用初始化
 app = Flask(__name__, static_folder='public')
 CORS(app)  # 启用跨域资源共享
@@ -1528,6 +1534,182 @@ def handle_disconnect():
     """
     print(f'Client disconnected: {request.sid}')  # 记录客户端断开连接，包含唯一会话ID
 
+# 初始化Elasticsearch搜索服务
+def initialize_es_search_service():
+    """初始化Elasticsearch搜索服务"""
+    global es_search_service
+    try:
+        # 从环境变量获取环境配置，默认为sandbox
+        es_env = os.environ.get('ES_ENV', 'sandbox')
+        es_search_service = get_es_search_service(env=es_env)
+        if es_search_service:
+            print(f"Elasticsearch搜索服务初始化成功，环境: {es_env}")
+        else:
+            print("Elasticsearch搜索服务初始化失败")
+    except Exception as e:
+        print(f"Elasticsearch搜索服务初始化错误: {e}")
+        es_search_service = None
+
+@app.route('/api/es/search', methods=['POST'])
+def es_search():
+    """
+    Elasticsearch日志搜索接口
+    
+    接收前端发送的搜索参数，执行Elasticsearch日志搜索和行为分析。
+    
+    请求体:
+        JSON: {
+            'index_name': str,      # 索引名称
+            'user_id': str,         # 用户ID
+            'start_time': str,      # 开始时间 (ISO格式)
+            'end_time': str,        # 结束时间 (ISO格式)
+            'platform': str         # 平台类型 (elasticsearch)
+        }
+    
+    返回:
+        JSON: {
+            'success': bool,        # 搜索是否成功启动
+            'message': str          # 状态消息
+        }
+    
+    异常处理:
+        - 400: 参数缺失或格式错误
+        - 500: 服务器内部错误
+        - 服务未初始化错误
+    """
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
+        
+        # 验证必需参数
+        required_fields = ['index_name', 'user_id', 'start_time', 'end_time', 'platform']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'缺少必需参数: {field}'}), 400
+        
+        # 检查Elasticsearch搜索服务是否可用
+        if not es_search_service:
+            return jsonify({'success': False, 'message': 'Elasticsearch搜索服务未初始化，请检查配置'}), 500
+        
+        # 提取参数
+        index_name = data['index_name'].strip()
+        user_id = data['user_id'].strip()
+        start_time = data['start_time']
+        end_time = data['end_time']
+        platform = data.get('platform', 'elasticsearch')
+        
+        # 验证时间格式
+        try:
+            from datetime import datetime
+            datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({'success': False, 'message': '时间格式错误，请使用ISO格式'}), 400
+        
+        # 发送开始搜索的系统消息
+        socketio.emit('log', {
+            'platform': 'system',
+            'message': f'开始Elasticsearch搜索: 索引={index_name}, 用户ID={user_id}'
+        })
+        
+        # 执行搜索
+        result = es_search_service.search_logs(
+            index_name=index_name,
+            user_id=user_id,
+            start_time=start_time,
+            end_time=end_time,
+            platform=platform,
+            socketio=socketio
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        error_message = f'Elasticsearch搜索请求处理失败: {str(e)}'
+        print(f"[ES Search Error] {error_message}")
+        socketio.emit('log', {
+            'platform': 'system',
+            'message': error_message
+        })
+        return jsonify({'success': False, 'message': error_message}), 500
+
+
+@app.route('/api/es/search/status', methods=['GET'])
+def es_search_status():
+    """
+    获取Elasticsearch搜索状态
+    
+    返回当前搜索任务的状态信息，包括是否正在搜索、进度等。
+    
+    返回:
+        JSON: {
+            'searching': bool,     # 是否正在搜索
+            'progress': float,     # 搜索进度 (0-1)
+            'processed': int,      # 已处理数量
+            'total': int           # 总数
+        }
+    
+    异常处理:
+        - 服务未初始化时返回默认状态
+    """
+    try:
+        if not es_search_service:
+            return jsonify({
+                'searching': False,
+                'progress': 0,
+                'processed': 0,
+                'total': 0
+            })
+        
+        status = es_search_service.get_search_status()
+        return jsonify(status)
+        
+    except Exception as e:
+        print(f"[ES Status Error] 获取搜索状态失败: {e}")
+        return jsonify({
+            'searching': False,
+            'progress': 0,
+            'processed': 0,
+            'total': 0
+        }), 500
+
+
+@app.route('/api/es/search/stop', methods=['POST'])
+def es_search_stop():
+    """
+    停止Elasticsearch搜索
+    
+    停止当前正在进行的Elasticsearch搜索任务。
+    
+    返回:
+        JSON: {
+            'success': bool,       # 是否成功停止
+            'message': str         # 状态消息
+        }
+    
+    异常处理:
+        - 服务未初始化错误
+    """
+    try:
+        if not es_search_service:
+            return jsonify({'success': False, 'message': 'Elasticsearch搜索服务未初始化'})
+        
+        es_search_service.stop_search()
+        
+        socketio.emit('log', {
+            'platform': 'system',
+            'message': 'Elasticsearch搜索已停止'
+        })
+        
+        return jsonify({'success': True, 'message': '搜索已停止'})
+        
+    except Exception as e:
+        error_message = f'停止搜索失败: {str(e)}'
+        print(f"[ES Stop Error] {error_message}")
+        return jsonify({'success': False, 'message': error_message}), 500
+
 if __name__ == '__main__':
     """
     主程序入口
@@ -1544,5 +1726,8 @@ if __name__ == '__main__':
     注意:
         在开发环境中可以将 debug 设置为 True
     """
+    # 初始化Elasticsearch搜索服务
+    initialize_es_search_service()
+    
     print(f'Log viewer server running on http://localhost:{PORT}')
     socketio.run(app, host='0.0.0.0', port=PORT, debug=False)

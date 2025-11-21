@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 获取并显示当前配置内容
     fetchAndDisplayConfig();
     const socket = io();
+    window.socket = socket; // 将socket暴露到全局作用域，供Elasticsearch搜索功能使用
 
     const logContainer = document.getElementById('log-container');
     const behaviorLogContainer = document.getElementById('behavior-log-container');
@@ -1115,5 +1116,255 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }, 100);
+    }
+});
+
+// Elasticsearch搜索功能
+class ElasticsearchSearch {
+    constructor() {
+        this.searching = false;
+        this.initializeElements();
+        this.initializeEventListeners();
+        this.initializeSocketHandlers();
+    }
+    
+    initializeElements() {
+        this.searchBtn = document.getElementById('es-search-btn');
+        this.stopBtn = document.getElementById('es-search-stop');
+        this.indexNameInput = document.getElementById('es-index-name');
+        this.userIdInput = document.getElementById('es-user-id');
+        this.startTimeInput = document.getElementById('es-start-time');
+        this.endTimeInput = document.getElementById('es-end-time');
+        this.envSelect = document.getElementById('es-env-select');
+    }
+    
+    initializeEventListeners() {
+        if (this.searchBtn) {
+            this.searchBtn.addEventListener('click', () => this.startSearch());
+        }
+        if (this.stopBtn) {
+            this.stopBtn.addEventListener('click', () => this.stopSearch());
+        }
+        
+        // 设置默认时间范围（最近24小时）
+        this.setDefaultTimeRange();
+    }
+    
+    initializeSocketHandlers() {
+        // 监听搜索进度更新
+        if (window.socket) {
+            window.socket.on('es_search_progress', (data) => {
+                this.updateProgress(data);
+            });
+            
+            window.socket.on('es_search_complete', (data) => {
+                this.handleSearchComplete(data);
+            });
+            
+            // 监听Elasticsearch日志消息
+            window.socket.on('log', (data) => {
+                if (data.platform === 'elasticsearch' || data.platform === 'system') {
+                    // 将Elasticsearch相关的日志显示在界面上
+                    this.displayEsLog(data);
+                }
+            });
+        }
+    }
+    
+    setDefaultTimeRange() {
+        const now = new Date();
+        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        if (this.startTimeInput) {
+            this.startTimeInput.value = this.formatDateTimeLocal(yesterday);
+        }
+        if (this.endTimeInput) {
+            this.endTimeInput.value = this.formatDateTimeLocal(now);
+        }
+    }
+    
+    formatDateTimeLocal(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
+    async startSearch() {
+        // 验证输入
+        if (!this.validateInputs()) {
+            return;
+        }
+        
+        // 准备搜索参数
+        const searchParams = {
+            index_name: this.indexNameInput.value.trim(),
+            user_id: this.userIdInput.value.trim(),
+            start_time: this.startTimeInput.value,
+            end_time: this.endTimeInput.value,
+            platform: 'elasticsearch',
+            env: this.envSelect.value || 'sandbox'
+        };
+        
+        // 转换为ISO格式时间
+        searchParams.start_time = new Date(searchParams.start_time).toISOString();
+        searchParams.end_time = new Date(searchParams.end_time).toISOString();
+        
+        this.setSearchingState(true);
+        
+        try {
+            const response = await fetch('/api/es/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(searchParams)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showMessage(`搜索已启动: ${result.message}`, 'success');
+            } else {
+                this.showMessage(`搜索启动失败: ${result.message}`, 'error');
+                this.setSearchingState(false);
+            }
+        } catch (error) {
+            this.showMessage(`搜索请求失败: ${error.message}`, 'error');
+            this.setSearchingState(false);
+        }
+    }
+    
+    async stopSearch() {
+        try {
+            const response = await fetch('/api/es/search/stop', {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showMessage('搜索已停止', 'info');
+            } else {
+                this.showMessage(`停止搜索失败: ${result.message}`, 'error');
+            }
+        } catch (error) {
+            this.showMessage(`停止搜索请求失败: ${error.message}`, 'error');
+        }
+    }
+    
+    validateInputs() {
+        if (!this.indexNameInput.value.trim()) {
+            this.showMessage('请输入索引名称', 'error');
+            return false;
+        }
+        
+        if (!this.userIdInput.value.trim()) {
+            this.showMessage('请输入用户ID', 'error');
+            return false;
+        }
+        
+        if (!this.startTimeInput.value) {
+            this.showMessage('请选择开始时间', 'error');
+            return false;
+        }
+        
+        if (!this.endTimeInput.value) {
+            this.showMessage('请选择结束时间', 'error');
+            return false;
+        }
+        
+        // 验证时间范围
+        const startTime = new Date(this.startTimeInput.value);
+        const endTime = new Date(this.endTimeInput.value);
+        
+        if (startTime >= endTime) {
+            this.showMessage('开始时间必须早于结束时间', 'error');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    setSearchingState(searching) {
+        this.searching = searching;
+        
+        if (this.searchBtn) {
+            this.searchBtn.style.display = searching ? 'none' : 'inline-block';
+        }
+        if (this.stopBtn) {
+            this.stopBtn.style.display = searching ? 'inline-block' : 'none';
+        }
+        
+        // 禁用输入框
+        const inputs = [this.indexNameInput, this.userIdInput, this.startTimeInput, this.endTimeInput, this.envSelect];
+        inputs.forEach(input => {
+            if (input) {
+                input.disabled = searching;
+            }
+        });
+    }
+    
+    updateProgress(data) {
+        const progress = Math.round(data.progress * 100);
+        this.showMessage(`搜索进度: ${progress}% (${data.processed}/${data.total})`, 'info');
+    }
+    
+    handleSearchComplete(data) {
+        this.setSearchingState(false);
+        
+        if (data.success) {
+            this.showMessage(`搜索完成: ${data.message}`, 'success');
+        } else {
+            this.showMessage(`搜索失败: ${data.message}`, 'error');
+        }
+    }
+    
+    displayEsLog(data) {
+        // 将Elasticsearch日志显示在日志容器中
+        const logContainer = document.getElementById('log-container');
+        if (logContainer) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry es-result';
+            entry.innerHTML = `
+                <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+                <span class="platform">[${data.platform.toUpperCase()}]</span>
+                <span class="message">${data.message}</span>
+            `;
+            logContainer.appendChild(entry);
+            
+            // 自动滚动到底部
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    }
+    
+    showMessage(message, type = 'info') {
+        // 使用现有的日志系统显示消息
+        if (window.socket) {
+            window.socket.emit('log', {
+                platform: 'system',
+                message: `[ES搜索] ${message}`,
+                level: type
+            });
+        }
+        
+        // 同时在控制台输出
+        console.log(`[ES Search ${type.toUpperCase()}] ${message}`);
+    }
+}
+
+// 初始化Elasticsearch搜索功能
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.socket) {
+        window.esSearch = new ElasticsearchSearch();
+    } else {
+        // 如果socket还未初始化，等待一段时间再初始化
+        setTimeout(() => {
+            if (window.socket) {
+                window.esSearch = new ElasticsearchSearch();
+            }
+        }, 1000);
     }
 });

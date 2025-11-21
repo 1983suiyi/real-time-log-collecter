@@ -651,3 +651,88 @@ button:hover, .button-like:hover {
 .filters .button-like {
     font-weight: normal;
 }
+/* Elasticsearch搜索表单样式 */
+.es-search-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.es-search-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.es-search-form .form-group label {
+    font-size: 12px;
+    color: #b0b0b0;
+    font-weight: 500;
+}
+
+.es-search-form .form-group input {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.es-search-form .form-group input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.es-search-form .form-group button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    background-color: #2196F3;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.es-search-form .form-group button:hover {
+    background-color: #1976D2;
+    transform: translateY(-1px);
+}
+
+.es-search-form .form-group button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+    transform: none;
+}
+
+#es-search-stop {
+    background-color: #f44336 !important;
+}
+
+#es-search-stop:hover {
+    background-color: #d32f2f !important;
+}
+
+/* Elasticsearch搜索结果样式 */
+.log-entry.es-result {
+    background-color: #2d2d1b;
+    border-left: 3px solid #FFC107;
+    padding-left: 10px;
+    margin-left: -10px;
+}
+
+.log-entry.es-result .platform {
+    color: #FFC107;
+    font-weight: bold;
+}
+
+.platform[platform="elasticsearch"] {
+    color: #FFC107;
+}
+
+.platform[platform="system"] {
+    color: #607D8B;
+}

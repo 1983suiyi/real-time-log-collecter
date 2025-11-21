@@ -45,6 +45,40 @@
                         <input type="file" id="import-log-file" accept=".log, .txt" style="display: none;">
                     </div>
                 </div>
+                
+                <div class="control-section">
+                    <h3>Elasticsearch搜索</h3>
+                    <div class="es-search-form">
+                        <div class="form-group">
+                            <label>索引名称:</label>
+                            <input type="text" id="es-index-name" placeholder="输入Elasticsearch索引名">
+                        </div>
+                        <div class="form-group">
+                            <label>用户ID:</label>
+                            <input type="text" id="es-user-id" placeholder="输入用户ID">
+                        </div>
+                        <div class="form-group">
+                            <label>开始时间:</label>
+                            <input type="datetime-local" id="es-start-time">
+                        </div>
+                        <div class="form-group">
+                            <label>结束时间:</label>
+                            <input type="datetime-local" id="es-end-time">
+                        </div>
+                        <div class="form-group">
+                            <label>环境选择:</label>
+                            <select id="es-env-select">
+                                <option value="cn">中国 (CN)</option>
+                                <option value="sandbox" selected>沙盒 (Sandbox)</option>
+                                <option value="production">生产 (Production)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <button id="es-search-btn">搜索日志</button>
+                            <button id="es-search-stop" style="display:none;">停止搜索</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
         <div class="logs-wrapper">
