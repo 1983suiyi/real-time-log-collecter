@@ -14,7 +14,10 @@ class ESQueryBuilder:
             self.config = yaml.safe_load(f)
         import json
         print("--- Loaded ESQueryBuilder Config ---")
-        print(json.dumps(self.config, indent=2))
+        _cfg = dict(self.config or {})
+        if 'index_name' in _cfg:
+            _cfg['default_index_name'] = _cfg.pop('index_name')
+        print(json.dumps(_cfg, indent=2))
         print("------------------------------------")
         self.index_name = self.config.get('index_name')
 
@@ -31,14 +34,14 @@ class ESQueryBuilder:
             'not_exists': self._build_not_exists_clause
         }
 
-    def build_query(self, runtime_params=None):
+    def build_query(self, runtime_params=None, template_override=None):
         query_config = self.config.get('query_config', {})
-        query_template_str = query_config.get('query_template')
+        query_template_str = template_override or query_config.get('query_template')
 
         if query_template_str:
             # If a query template is defined, use it
             import json
-            query_template = json.loads(query_template_str)
+            query_template = query_template_str if isinstance(query_template_str, dict) else json.loads(query_template_str)
 
             # Apply runtime parameters to the template
             if runtime_params:

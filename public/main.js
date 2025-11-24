@@ -1199,18 +1199,28 @@ class ElasticsearchSearch {
         }
         
         // 准备搜索参数
+        const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
         const searchParams = {
             index_name: this.indexNameInput.value.trim(),
             user_id: this.userIdInput.value.trim(),
             start_time: this.startTimeInput.value,
             end_time: this.endTimeInput.value,
             platform: 'elasticsearch',
-            env: this.envSelect.value || 'sandbox'
+            env: this.envSelect.value || 'sandbox',
+            request_id: requestId
         };
         
         // 转换为ISO格式时间
         searchParams.start_time = new Date(searchParams.start_time).toISOString();
         searchParams.end_time = new Date(searchParams.end_time).toISOString();
+
+        this.showMessage(`[请求ID ${requestId}] ES搜索请求参数:\n` + JSON.stringify({
+            index_name: searchParams.index_name,
+            user_id: searchParams.user_id,
+            start_time: searchParams.start_time,
+            end_time: searchParams.end_time,
+            env: searchParams.env
+        }, null, 2), 'info');
         
         this.setSearchingState(true);
         
@@ -1341,7 +1351,6 @@ class ElasticsearchSearch {
     }
     
     showMessage(message, type = 'info') {
-        // 使用现有的日志系统显示消息
         if (window.socket) {
             window.socket.emit('log', {
                 platform: 'system',
@@ -1349,8 +1358,7 @@ class ElasticsearchSearch {
                 level: type
             });
         }
-        
-        // 同时在控制台输出
+        this.displayEsLog({ platform: 'system', message: `[ES搜索] ${message}` });
         console.log(`[ES Search ${type.toUpperCase()}] ${message}`);
     }
 }

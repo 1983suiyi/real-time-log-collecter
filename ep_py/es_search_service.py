@@ -36,12 +36,13 @@ class ElasticsearchSearchService:
             self.processed_count = 0
             self.total_hits = 0
             self.current_thread = None
+            self.env = env
             logging.info(f"Elasticsearch搜索服务初始化完成，环境: {env}")
         except Exception as e:
             logging.error(f"Elasticsearch搜索服务初始化失败: {e}")
             raise
     
-    def search_logs(self, index_name, user_id, start_time, end_time, platform, socketio):
+    def search_logs(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None):
         """
         执行Elasticsearch日志搜索
         
@@ -65,7 +66,7 @@ class ElasticsearchSearchService:
         # 启动搜索线程
         self.current_thread = threading.Thread(
             target=self._search_thread,
-            args=(index_name, user_id, start_time, end_time, platform, socketio)
+            args=(index_name, user_id, start_time, end_time, platform, socketio, query_template)
         )
         self.current_thread.start()
         
@@ -74,7 +75,7 @@ class ElasticsearchSearchService:
             'message': '搜索任务已启动'
         }
     
-    def _search_thread(self, index_name, user_id, start_time, end_time, platform, socketio):
+    def _search_thread(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None):
         """
         搜索执行线程
         """
@@ -88,7 +89,7 @@ class ElasticsearchSearchService:
             # 发送开始搜索消息
             socketio.emit('log', {
                 'platform': 'system',
-                'message': f'开始Elasticsearch搜索: 索引={index_name}, 用户ID={user_id}, 时间范围={start_time} 至 {end_time}'
+                'message': f'开始Elasticsearch搜索: 索引={index_name}, 用户ID={user_id}, 时间范围={start_time} 至 {end_time}, 环境={self.env}'
             })
             
             # 构建查询参数
@@ -99,8 +100,12 @@ class ElasticsearchSearchService:
             }
             
             # 构建查询
-            query = self.query_builder.build_query(runtime_params=runtime_params)
+            query = self.query_builder.build_query(runtime_params=runtime_params, template_override=query_template)
             logging.info(f"构建的查询: {json.dumps(query, indent=2, ensure_ascii=False)}")
+            socketio.emit('log', {
+                'platform': 'system',
+                'message': 'ES搜索查询配置:\n' + json.dumps(query, indent=2, ensure_ascii=False)
+            })
             
             # 执行搜索
             socketio.emit('log', {

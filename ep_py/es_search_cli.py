@@ -23,25 +23,26 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class SimpleSocketIO:
     """简单的SocketIO模拟类，用于命令行模式"""
     
-    def __init__(self):
+    def __init__(self, request_id=None):
         self.messages = []
+        self.request_id = request_id or '-'
     
     def emit(self, event, data):
         """模拟SocketIO的emit方法"""
         if event == 'log':
-            message = f"[{data.get('platform', 'unknown')}] {data.get('message', '')}"
+            message = f"[{data.get('platform', 'unknown')}] [req:{self.request_id}] {data.get('message', '')}"
             print(message)
             self.messages.append(message)
         elif event == 'es_search_progress':
             progress = data.get('progress', 0) * 100
             processed = data.get('processed', 0)
             total = data.get('total', 0)
-            print(f"搜索进度: {progress:.1f}% ({processed}/{total})")
+            print(f"[req:{self.request_id}] 搜索进度: {progress:.1f}% ({processed}/{total})")
         elif event == 'es_search_complete':
             success = data.get('success', False)
             message = data.get('message', '')
             status = "完成" if success else "失败"
-            print(f"搜索{status}: {message}")
+            print(f"[req:{self.request_id}] 搜索{status}: {message}")
 
 
 def main():
@@ -58,6 +59,8 @@ def main():
                        help='运行环境 (cn: 中国, sandbox: 沙盒, production: 生产)')
     parser.add_argument('--output', choices=['json', 'text'], default='json',
                        help='输出格式')
+    parser.add_argument('--query_template', required=False, help='查询模板(JSON字符串)，优先于配置文件模板')
+    parser.add_argument('--request_id', required=False, help='请求ID，用于日志关联')
     
     args = parser.parse_args()
     
@@ -72,7 +75,7 @@ def main():
             return 1
         
         # 创建SocketIO模拟器
-        socketio = SimpleSocketIO()
+        socketio = SimpleSocketIO(request_id=args.request_id)
         
         if args.mode == 'cli':
             print(f"开始Elasticsearch搜索...")
@@ -89,7 +92,8 @@ def main():
             start_time=args.start_time,
             end_time=args.end_time,
             platform=args.platform,
-            socketio=socketio
+            socketio=socketio,
+            query_template=args.query_template
         )
         
         if args.mode == 'cli':

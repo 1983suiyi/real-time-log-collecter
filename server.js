@@ -67,7 +67,7 @@ app.post('/config', (req, res) => {
 // Elasticsearch搜索API端点
 app.post('/api/es/search', (req, res) => {
     try {
-        const { index_name, user_id, start_time, end_time, platform, env } = req.body;
+        const { index_name, user_id, start_time, end_time, platform, env, query_template, request_id } = req.body;
         
         // 验证必需参数
         if (!index_name || !user_id || !start_time || !end_time) {
@@ -95,9 +95,15 @@ app.post('/api/es/search', (req, res) => {
             });
         }
         
+        // 在UI打印请求参数
+        io.emit('log', {
+            platform: 'system',
+            message: `[请求ID ${request_id || '-'}] ES搜索请求参数:\n` + JSON.stringify({ index_name, user_id, start_time, end_time, env, platform }, null, 2)
+        });
+
         // 调用Python Elasticsearch搜索服务
         const pythonScript = path.join(__dirname, 'ep_py', 'es_search_cli.py');
-        const pythonProcess = spawn('python3', [
+        const args = [
             pythonScript,
             '--mode', 'api',
             '--index', index_name,
@@ -107,7 +113,16 @@ app.post('/api/es/search', (req, res) => {
             '--platform', platform || 'elasticsearch',
             '--env', env || 'sandbox', // 使用传入的环境参数，默认为sandbox
             '--output', 'json'
-        ]);
+        ];
+        if (query_template) {
+            args.push('--query_template');
+            args.push(typeof query_template === 'string' ? query_template : JSON.stringify(query_template));
+        }
+        if (request_id) {
+            args.push('--request_id');
+            args.push(request_id);
+        }
+        const pythonProcess = spawn('python3', args);
         
         let searchResult = '';
         let errorOutput = '';
