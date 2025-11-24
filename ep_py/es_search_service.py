@@ -51,7 +51,7 @@ class ElasticsearchSearchService:
             logging.error(f"Elasticsearch搜索服务初始化失败: {e}")
             raise
     
-    def search_logs(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None, log_param=None):
+    def search_logs(self, index_name, user_key, user_value, start_time, end_time, platform, socketio, query_template=None, log_param=None):
         """
         执行Elasticsearch日志搜索
         
@@ -75,7 +75,7 @@ class ElasticsearchSearchService:
         # 启动搜索线程
         self.current_thread = threading.Thread(
             target=self._search_thread,
-            args=(index_name, user_id, start_time, end_time, platform, socketio, query_template, log_param)
+            args=(index_name, user_key, user_value, start_time, end_time, platform, socketio, query_template, log_param)
         )
         self.current_thread.start()
         
@@ -84,7 +84,7 @@ class ElasticsearchSearchService:
             'message': '搜索任务已启动'
         }
     
-    def _search_thread(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None, log_param=None):
+    def _search_thread(self, index_name, user_key, user_value, start_time, end_time, platform, socketio, query_template=None, log_param=None):
         """
         搜索执行线程
         """
@@ -93,20 +93,49 @@ class ElasticsearchSearchService:
         self.processed_count = 0
         
         try:
-            logging.info(f"开始Elasticsearch搜索: index={index_name}, user_id={user_id}")
+            logging.info(f"开始Elasticsearch搜索: index={index_name}, {user_key}={user_value}")
             
             # 发送开始搜索消息
             socketio.emit('log', {
                 'platform': 'system',
-                'message': f'开始Elasticsearch搜索: 索引={index_name}, 用户ID={user_id}, 时间范围={start_time} 至 {end_time}, 环境={self.env}'
+                'message': f'开始Elasticsearch搜索: 索引={index_name}, {user_key}={user_value}, 时间范围={start_time} 至 {end_time}, 环境={self.env}'
             })
             
             # 构建查询参数
             runtime_params = {
                 'start_time': start_time,
                 'end_time': end_time,
-                'user_id': user_id,
+                'user_key': user_key,
+                'user_value': user_value,
                 'log_param': log_param or ''
+            }
+
+            # 动态选择正则或精确匹配
+            use_regex = False
+            val = user_value or ''
+            if isinstance(val, str):
+                if (val.startswith('/') and val.endswith('/')):
+                    runtime_params['user_value'] = val[1:-1]
+                    use_regex = True
+                else:
+                    regex_chars = ['.*', '[', ']', '^', '$', '\\', '|', '?', '+', '{', '}']
+                    if any(c in val for c in regex_chars):
+                        use_regex = True
+
+            # 动态构建 must 条件，避免空字符串的内容匹配
+            must_conditions = [
+                {"range": {"@timestamp": {"gte": "{{start_time}}", "lte": "{{end_time}}"}}}
+            ]
+
+            template_override = {
+                "bool": {
+                    "filter": [
+                        {"term": {"event": "outlog"}},
+                        ({"regexp": {"{{user_key}}": {"value": "{{user_value}}"}}} if use_regex else {"term": {"{{user_key}}": "{{user_value}}"}})
+                    ],
+                    "must": must_conditions,
+                    "must_not": []
+                }
             }
             try:
                 import json as _json
@@ -115,7 +144,7 @@ class ElasticsearchSearchService:
                 extra = False
             
             # 构建查询
-            query = self.query_builder.build_query(runtime_params=runtime_params, template_override=query_template)
+            query = self.query_builder.build_query(runtime_params=runtime_params, template_override=query_template or template_override)
             logging.info(f"构建的查询: {json.dumps(query, indent=2, ensure_ascii=False)}")
             socketio.emit('log', {
                 'platform': 'system',
@@ -125,7 +154,7 @@ class ElasticsearchSearchService:
             # 执行搜索
             socketio.emit('log', {
                 'platform': 'system',
-                'message': '正在执行Elasticsearch查询...'
+                'message': f'正在执行Elasticsearch查询: 使用索引={index_name}'
             })
             
             results = self.es_util.search(query, index_name)

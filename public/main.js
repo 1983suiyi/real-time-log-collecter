@@ -1132,7 +1132,8 @@ class ElasticsearchSearch {
         this.searchBtn = document.getElementById('es-search-btn');
         this.stopBtn = document.getElementById('es-search-stop');
         this.indexNameInput = document.getElementById('es-index-name');
-        this.userIdInput = document.getElementById('es-user-id');
+        this.userKeyInput = document.getElementById('es-user-key');
+        this.userValueInput = document.getElementById('es-user-value');
         this.startTimeInput = document.getElementById('es-start-time');
         this.endTimeInput = document.getElementById('es-end-time');
         this.envSelect = document.getElementById('es-env-select');
@@ -1214,7 +1215,8 @@ class ElasticsearchSearch {
         const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
         const searchParams = {
             index_name: this.indexNameInput.value.trim(),
-            user_id: this.userIdInput.value.trim(),
+            user_key: this.userKeyInput ? this.userKeyInput.value.trim() : '',
+            user_value: this.userValueInput ? this.userValueInput.value.trim() : '',
             start_time: this.startTimeInput.value,
             end_time: this.endTimeInput.value,
             platform: 'elasticsearch',
@@ -1229,7 +1231,8 @@ class ElasticsearchSearch {
 
         this.showMessage(`[请求ID ${requestId}] ES搜索请求参数:\n` + JSON.stringify({
             index_name: searchParams.index_name,
-            user_id: searchParams.user_id,
+            user_key: searchParams.user_key,
+            user_value: searchParams.user_value,
             start_time: searchParams.start_time,
             end_time: searchParams.end_time,
             env: searchParams.env,
@@ -1285,8 +1288,8 @@ class ElasticsearchSearch {
             return false;
         }
         
-        if (!this.userIdInput.value.trim()) {
-            this.showMessage('请输入用户ID', 'error');
+        if (!this.userKeyInput.value.trim() || !this.userValueInput.value.trim()) {
+            this.showMessage('请输入属性键与属性值', 'error');
             return false;
         }
         
@@ -1323,7 +1326,7 @@ class ElasticsearchSearch {
         }
         
         // 禁用输入框
-        const inputs = [this.indexNameInput, this.userIdInput, this.startTimeInput, this.endTimeInput, this.envSelect];
+        const inputs = [this.indexNameInput, this.userKeyInput, this.userValueInput, this.startTimeInput, this.endTimeInput, this.envSelect];
         inputs.forEach(input => {
             if (input) {
                 input.disabled = searching;

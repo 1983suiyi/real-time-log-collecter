@@ -67,13 +67,13 @@ app.post('/config', (req, res) => {
 // Elasticsearch搜索API端点
 app.post('/api/es/search', (req, res) => {
     try {
-        const { index_name, user_id, start_time, end_time, platform, env, query_template, request_id, log_param } = req.body;
+        const { index_name, user_key, user_value, start_time, end_time, platform, env, query_template, request_id, log_param } = req.body;
         
         // 验证必需参数
-        if (!index_name || !user_id || !start_time || !end_time) {
+        if (!index_name || !user_key || !user_value || !start_time || !end_time) {
             return res.status(400).json({ 
                 success: false, 
-                message: '缺少必需参数: index_name, user_id, start_time, end_time' 
+                message: '缺少必需参数: index_name, user_key, user_value, start_time, end_time' 
             });
         }
         
@@ -98,7 +98,7 @@ app.post('/api/es/search', (req, res) => {
         // 在UI打印请求参数
         io.emit('log', {
             platform: 'system',
-            message: `[请求ID ${request_id || '-'}] ES搜索请求参数:\n` + JSON.stringify({ index_name, user_id, start_time, end_time, env, platform, log_param }, null, 2)
+            message: `[请求ID ${request_id || '-'}] ES搜索请求参数:\n` + JSON.stringify({ index_name, user_key, user_value, start_time, end_time, env, platform, log_param }, null, 2)
         });
 
         // 调用Python Elasticsearch搜索服务
@@ -107,7 +107,8 @@ app.post('/api/es/search', (req, res) => {
             pythonScript,
             '--mode', 'api',
             '--index', index_name,
-            '--user_id', user_id,
+            '--user_key', user_key,
+            '--user_value', user_value,
             '--start_time', start_time,
             '--end_time', end_time,
             '--platform', platform || 'elasticsearch',

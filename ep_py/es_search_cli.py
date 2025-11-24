@@ -54,7 +54,8 @@ def main():
     parser.add_argument('--mode', choices=['api', 'cli'], default='cli',
                        help='运行模式: api (API调用) 或 cli (命令行)')
     parser.add_argument('--index', required=True, help='Elasticsearch索引名称')
-    parser.add_argument('--user_id', required=True, help='用户ID')
+    parser.add_argument('--user_key', required=True, help='属性键 (如 userId)')
+    parser.add_argument('--user_value', required=True, help='属性值')
     parser.add_argument('--start_time', required=True, help='开始时间 (ISO格式)')
     parser.add_argument('--end_time', required=True, help='结束时间 (ISO格式)')
     parser.add_argument('--platform', default='elasticsearch', help='平台类型')
@@ -84,7 +85,7 @@ def main():
         if args.mode == 'cli':
             print(f"开始Elasticsearch搜索...")
             print(f"索引: {args.index}")
-            print(f"用户ID: {args.user_id}")
+            print(f"属性匹配: {args.user_key} = {args.user_value}")
             print(f"环境: {args.env}")
             print(f"时间范围: {args.start_time} 至 {args.end_time}")
             print("-" * 50)
@@ -92,7 +93,8 @@ def main():
         # 执行搜索
         result = search_service.search_logs(
             index_name=args.index,
-            user_id=args.user_id,
+            user_key=args.user_key,
+            user_value=args.user_value,
             start_time=args.start_time,
             end_time=args.end_time,
             platform=args.platform,

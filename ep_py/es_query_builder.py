@@ -12,13 +12,8 @@ class ESQueryBuilder:
 
         with open(absolute_config_path, 'r') as f:
             self.config = yaml.safe_load(f)
-        import json
-        print("--- Loaded ESQueryBuilder Config ---")
-        _cfg = dict(self.config or {})
-        if 'index_name' in _cfg:
-            _cfg['default_index_name'] = _cfg.pop('index_name')
-        print(json.dumps(_cfg, indent=2))
-        print("------------------------------------")
+        default_idx = self.config.get('index_name')
+        print(f"ESQueryBuilder loaded. default_index_name={default_idx}")
         self.index_name = self.config.get('index_name')
 
         self.rule_builders = {
@@ -101,9 +96,16 @@ class ESQueryBuilder:
 
 
     def _apply_params(self, template, params):
-        """Recursively apply parameters to a template."""
+        """Recursively apply parameters to a template, including keys."""
         if isinstance(template, dict):
-            return {k: self._apply_params(v, params) for k, v in template.items()}
+            new_dict = {}
+            for k, v in template.items():
+                new_key = k
+                if isinstance(k, str) and k.startswith('{{') and k.endswith('}}'):
+                    keyname = k[2:-2].strip()
+                    new_key = params.get(keyname, k)
+                new_dict[new_key] = self._apply_params(v, params)
+            return new_dict
         elif isinstance(template, list):
             return [self._apply_params(i, params) for i in template]
         elif isinstance(template, str) and template.startswith('{{') and template.endswith('}}'):
@@ -143,8 +145,13 @@ class ESQueryBuilder:
     def _build_term_filter_clause(self, rule_params, runtime_params):
         field = rule_params.get('field')
         value = rule_params.get('value')
-        if field and value is not None:
-            context = rule_params.get('context', 'filter') # Default to filter for term queries
+        # 解析可能的模板值以判断空字符串
+        resolved_value = value
+        if isinstance(value, str) and value.startswith('{{') and value.endswith('}}'):
+            key = value[2:-2].strip()
+            resolved_value = runtime_params.get(key, value)
+        if field and (resolved_value is not None) and (str(resolved_value).strip() != ''):
+            context = rule_params.get('context', 'filter')
             template = {"term": {field: value}, "context": context}
             return self._apply_params(template, runtime_params)
         return None
@@ -238,7 +245,7 @@ class ESQueryBuilder:
         fields = rule_params.get('fields')
         query = rule_params.get('query')
         context = rule_params.get('context', 'must')
-        if fields and query is not None:
+        if fields and (query is not None) and (str(query).strip() != ''):
             multi_match_params = {k: v for k, v in rule_params.items() if k not in ['context']}
             template = {"multi_match": multi_match_params, "context": context}
             return self._apply_params(template, runtime_params)
@@ -274,7 +281,14 @@ class ESQueryBuilder:
     def _apply_params(self, template, runtime_params):
 
         if isinstance(template, dict):
-            return {k: self._apply_params(v, runtime_params) for k, v in template.items()}
+            new_dict = {}
+            for k, v in template.items():
+                new_key = k
+                if isinstance(k, str) and k.startswith('{{') and k.endswith('}}'):
+                    keyname = k[2:-2].strip()
+                    new_key = runtime_params.get(keyname, k)
+                new_dict[new_key] = self._apply_params(v, runtime_params)
+            return new_dict
         elif isinstance(template, list):
             return [self._apply_params(i, runtime_params) for i in template]
         elif isinstance(template, str) and template.startswith('{{') and template.endswith('}}'):
