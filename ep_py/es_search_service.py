@@ -14,6 +14,8 @@ from flask_socketio import emit
 
 from ep_py.es_query_builder import ESQueryBuilder
 from ep_py.common import EsUtil
+import yaml
+import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -31,6 +33,13 @@ class ElasticsearchSearchService:
         try:
             self.es_util = EsUtil(env=env)
             self.query_builder = ESQueryBuilder('config/es_search_config.yaml')
+            # 加载行为配置
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            config_yaml = os.path.join(project_root, 'config.yaml')
+            self.behavior_config = {'behaviors': []}
+            if os.path.exists(config_yaml):
+                with open(config_yaml, 'r', encoding='utf-8') as f:
+                    self.behavior_config = yaml.safe_load(f) or {'behaviors': []}
             self.search_active = False
             self.search_progress = 0
             self.processed_count = 0
@@ -42,7 +51,7 @@ class ElasticsearchSearchService:
             logging.error(f"Elasticsearch搜索服务初始化失败: {e}")
             raise
     
-    def search_logs(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None):
+    def search_logs(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None, log_param=None):
         """
         执行Elasticsearch日志搜索
         
@@ -66,7 +75,7 @@ class ElasticsearchSearchService:
         # 启动搜索线程
         self.current_thread = threading.Thread(
             target=self._search_thread,
-            args=(index_name, user_id, start_time, end_time, platform, socketio, query_template)
+            args=(index_name, user_id, start_time, end_time, platform, socketio, query_template, log_param)
         )
         self.current_thread.start()
         
@@ -75,7 +84,7 @@ class ElasticsearchSearchService:
             'message': '搜索任务已启动'
         }
     
-    def _search_thread(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None):
+    def _search_thread(self, index_name, user_id, start_time, end_time, platform, socketio, query_template=None, log_param=None):
         """
         搜索执行线程
         """
@@ -96,8 +105,14 @@ class ElasticsearchSearchService:
             runtime_params = {
                 'start_time': start_time,
                 'end_time': end_time,
-                'user_id': user_id
+                'user_id': user_id,
+                'log_param': log_param or ''
             }
+            try:
+                import json as _json
+                extra = socketio and True
+            except Exception:
+                extra = False
             
             # 构建查询
             query = self.query_builder.build_query(runtime_params=runtime_params, template_override=query_template)
@@ -303,28 +318,21 @@ class ElasticsearchSearchService:
         return formatted_log
     
     def _perform_basic_analysis(self, formatted_log, platform, socketio):
-        """
-        执行基础行为分析
-        
-        参数:
-            formatted_log: 格式化的日志字符串
-            platform: 平台类型
-            socketio: SocketIO实例
-        """
-        # 这里可以实现基础的行为分析逻辑
-        # 例如：关键词匹配、模式识别等
-        
-        # 示例：简单的关键词匹配
-        keywords = ['error', 'exception', 'failed', 'timeout']
-        log_lower = formatted_log.lower()
-        
-        for keyword in keywords:
-            if keyword in log_lower:
-                socketio.emit('log', {
-                    'platform': 'behavior',
-                    'message': f'发现关键词 "{keyword}": {formatted_log[:100]}...'
-                })
-                break
+        behaviors = self.behavior_config.get('behaviors', [])
+        import re
+        for behavior in behaviors:
+            pattern = behavior.get('pattern')
+            if not pattern:
+                continue
+            try:
+                if re.search(pattern, formatted_log, re.I):
+                    socketio.emit('behavior_triggered', {
+                        'behavior': behavior,
+                        'log': formatted_log,
+                        'validationResults': None
+                    })
+            except re.error:
+                continue
 
 
 # 全局搜索服务实例

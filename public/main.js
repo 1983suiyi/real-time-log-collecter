@@ -1136,6 +1136,8 @@ class ElasticsearchSearch {
         this.startTimeInput = document.getElementById('es-start-time');
         this.endTimeInput = document.getElementById('es-end-time');
         this.envSelect = document.getElementById('es-env-select');
+        this.logParamInput = document.getElementById('es-log-param');
+        this.esSearchSection = document.getElementById('es-search-section');
     }
     
     initializeEventListeners() {
@@ -1145,7 +1147,17 @@ class ElasticsearchSearch {
         if (this.stopBtn) {
             this.stopBtn.addEventListener('click', () => this.stopSearch());
         }
-        
+        if (document.getElementById('platform-filter')) {
+            const pf = document.getElementById('platform-filter');
+            const toggle = () => {
+                if (this.esSearchSection) {
+                    this.esSearchSection.style.display = pf.value === 'minigame' ? 'block' : 'none';
+                }
+            };
+            pf.addEventListener('change', toggle);
+            toggle();
+        }
+
         // 设置默认时间范围（最近24小时）
         this.setDefaultTimeRange();
     }
@@ -1207,6 +1219,7 @@ class ElasticsearchSearch {
             end_time: this.endTimeInput.value,
             platform: 'elasticsearch',
             env: this.envSelect.value || 'sandbox',
+            log_param: (this.logParamInput && this.logParamInput.value.trim()) || '',
             request_id: requestId
         };
         
@@ -1219,7 +1232,8 @@ class ElasticsearchSearch {
             user_id: searchParams.user_id,
             start_time: searchParams.start_time,
             end_time: searchParams.end_time,
-            env: searchParams.env
+            env: searchParams.env,
+            log_param: searchParams.log_param
         }, null, 2), 'info');
         
         this.setSearchingState(true);

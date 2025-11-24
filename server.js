@@ -67,7 +67,7 @@ app.post('/config', (req, res) => {
 // Elasticsearch搜索API端点
 app.post('/api/es/search', (req, res) => {
     try {
-        const { index_name, user_id, start_time, end_time, platform, env, query_template, request_id } = req.body;
+        const { index_name, user_id, start_time, end_time, platform, env, query_template, request_id, log_param } = req.body;
         
         // 验证必需参数
         if (!index_name || !user_id || !start_time || !end_time) {
@@ -98,7 +98,7 @@ app.post('/api/es/search', (req, res) => {
         // 在UI打印请求参数
         io.emit('log', {
             platform: 'system',
-            message: `[请求ID ${request_id || '-'}] ES搜索请求参数:\n` + JSON.stringify({ index_name, user_id, start_time, end_time, env, platform }, null, 2)
+            message: `[请求ID ${request_id || '-'}] ES搜索请求参数:\n` + JSON.stringify({ index_name, user_id, start_time, end_time, env, platform, log_param }, null, 2)
         });
 
         // 调用Python Elasticsearch搜索服务
@@ -114,6 +114,10 @@ app.post('/api/es/search', (req, res) => {
             '--env', env || 'sandbox', // 使用传入的环境参数，默认为sandbox
             '--output', 'json'
         ];
+        if (log_param) {
+            args.push('--log_param');
+            args.push(log_param);
+        }
         if (query_template) {
             args.push('--query_template');
             args.push(typeof query_template === 'string' ? query_template : JSON.stringify(query_template));
@@ -135,11 +139,21 @@ app.post('/api/es/search', (req, res) => {
                 const lines = data.toString().split('\n');
                 lines.forEach(line => {
                     if (line.trim()) {
-                        // 发送原始输出作为系统消息
-                        io.emit('log', {
-                            platform: 'system',
-                            message: `ES搜索: ${line}`
-                        });
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('__BEHAVIOR__ ')) {
+                            const payload = trimmed.substring('__BEHAVIOR__ '.length);
+                            try {
+                                const dataObj = JSON.parse(payload);
+                                io.emit('behavior_triggered', dataObj);
+                            } catch (e) {
+                                io.emit('log', { platform: 'system', message: `解析行为触发失败: ${e.message}` });
+                            }
+                        } else {
+                            io.emit('log', {
+                                platform: 'system',
+                                message: `ES搜索: ${trimmed}`
+                            });
+                        }
                     }
                 });
             } catch (e) {
@@ -160,17 +174,36 @@ app.post('/api/es/search', (req, res) => {
         
         pythonProcess.on('close', (code) => {
             if (code === 0) {
-                try {
-                    const result = JSON.parse(searchResult);
+                let parsed = null;
+                const text = (searchResult || '').trim();
+                const lines = text.split('\n').reverse();
+                for (const ln of lines) {
+                    const t = ln.trim();
+                    if (!t) continue;
+                    try {
+                        parsed = JSON.parse(t);
+                        break;
+                    } catch (_) {
+                        continue;
+                    }
+                }
+                if (!parsed) {
+                    const lastBrace = text.lastIndexOf('{');
+                    if (lastBrace !== -1) {
+                        const candidate = text.substring(lastBrace);
+                        try { parsed = JSON.parse(candidate); } catch (_) {}
+                    }
+                }
+                if (parsed) {
                     io.emit('es_search_complete', {
                         success: true,
-                        message: `搜索完成，找到 ${result.total || 0} 条记录`,
-                        data: result
+                        message: `搜索完成，找到 ${parsed.total || parsed.total_hits || 0} 条记录`,
+                        data: parsed
                     });
-                } catch (parseError) {
+                } else {
                     io.emit('es_search_complete', {
                         success: false,
-                        message: `搜索结果解析失败: ${parseError.message}`
+                        message: '搜索结果解析失败: 输出中未找到有效JSON块'
                     });
                 }
             } else {

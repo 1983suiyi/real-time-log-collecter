@@ -24,6 +24,7 @@
                             <option value="android">Android</option>
                             <option value="ios">iOS</option>
                             <option value="harmonyos">HarmonyOS</option>
+                            <option value="minigame">Minigame</option>
                         </select>
                         <input type="text" id="tag-filter" placeholder="Enter tag to filter..." list="tag-history">
                         <datalist id="tag-history"></datalist>
@@ -46,7 +47,7 @@
                     </div>
                 </div>
                 
-                <div class="control-section">
+                <div class="control-section" id="es-search-section">
                     <h3>Elasticsearch搜索</h3>
                     <div class="es-search-form">
                         <div class="form-group">
@@ -64,6 +65,10 @@
                         <div class="form-group">
                             <label>结束时间:</label>
                             <input type="datetime-local" id="es-end-time">
+                        </div>
+                        <div class="form-group">
+                            <label>日志匹配参数:</label>
+                            <input type="text" id="es-log-param" placeholder="输入日志关键词或短语">
                         </div>
                         <div class="form-group">
                             <label>环境选择:</label>

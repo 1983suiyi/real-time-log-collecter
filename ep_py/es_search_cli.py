@@ -33,6 +33,9 @@ class SimpleSocketIO:
             message = f"[{data.get('platform', 'unknown')}] [req:{self.request_id}] {data.get('message', '')}"
             print(message)
             self.messages.append(message)
+        elif event == 'behavior_triggered':
+            import json as _json
+            print("__BEHAVIOR__ " + _json.dumps(data, ensure_ascii=False))
         elif event == 'es_search_progress':
             progress = data.get('progress', 0) * 100
             processed = data.get('processed', 0)
@@ -60,6 +63,7 @@ def main():
     parser.add_argument('--output', choices=['json', 'text'], default='json',
                        help='输出格式')
     parser.add_argument('--query_template', required=False, help='查询模板(JSON字符串)，优先于配置文件模板')
+    parser.add_argument('--log_param', required=False, help='日志匹配参数，用于内容搜索')
     parser.add_argument('--request_id', required=False, help='请求ID，用于日志关联')
     
     args = parser.parse_args()
@@ -93,7 +97,8 @@ def main():
             end_time=args.end_time,
             platform=args.platform,
             socketio=socketio,
-            query_template=args.query_template
+            query_template=args.query_template,
+            log_param=args.log_param
         )
         
         if args.mode == 'cli':
