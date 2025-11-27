@@ -38,11 +38,11 @@
 git clone <repository-url>
 cd real-time-log-collecter
 
-# 安装依赖
-pip3 install -r requirements.txt
+# 安装前端/服务端依赖
+npm install
 
-# 启动服务器
-python3 server.py
+# 启动服务器（Node）
+npm start
 ```
 
 ### 访问Web界面
@@ -52,6 +52,8 @@ python3 server.py
 ```
 http://localhost:3000
 ```
+
+说明：当前项目使用 `server.js` 作为主服务进程，前端通过 Socket.IO 与 HTTP API 与之交互。Elasticsearch 搜索能力由 Node 服务调用 Python 子进程提供（位于 `ep_py` 目录），如需启用该能力，请确保本机已安装 Python 并按需安装 `requirements.txt` 中的依赖。
 
 ## 技术支持
 
