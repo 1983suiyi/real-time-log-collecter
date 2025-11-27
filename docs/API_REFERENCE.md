@@ -497,6 +497,62 @@ ws://localhost:3000/socket.io/
 }
 ```
 
+## Elasticsearch 搜索
+
+### 发起搜索
+
+- URL: `/api/es/search`
+- 方法: `POST`
+- 内容类型: `application/json`
+
+请求参数：
+```json
+{
+  "index_name": "app-logs-*",
+  "user_key": "userId",
+  "user_value": "123",
+  "start_time": "2025-11-01T00:00:00Z",
+  "end_time": "2025-11-02T00:00:00Z",
+  "platform": "elasticsearch",
+  "env": "sandbox",
+  "log_param": "",
+  "query_template": null,
+  "request_id": "optional-id"
+}
+```
+
+说明：
+- `user_key` 与 `user_value` 用于 `term` 或 `regexp` 过滤；当 `user_value` 以 `/pattern/` 包裹或包含正则元字符时自动使用 `regexp`。
+- `log_param` 可选；默认逻辑不进行内容匹配。
+- `query_template` 可选；若提供，作为查询模板并参与参数替换。
+
+WebSocket 事件：
+- `log`: 打印请求参数与构建的查询 JSON
+- `es_search_progress`: 周期性进度更新（`processed`, `total`, `progress`）
+- `es_search_complete`: 完成或失败通知（`success`, `total_hits`, `processed`, `message`）
+- `behavior_triggered`: 行为分析命中事件
+
+查询结构要点：
+- `must` 包含 `range(@timestamp)`
+- `filter` 包含 `term(event="outlog")` 与用户属性的 `term/regexp`
+- `_source` 仅返回 `@timestamp` 与 `log`
+- `sort` 为 `@timestamp` 升序，`size` 默认为 `100`
+
+示例：
+```bash
+curl -X POST http://localhost:3000/api/es/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "index_name":"app-logs-*",
+    "user_key":"userId",
+    "user_value":"123",
+    "start_time":"2025-11-01T00:00:00Z",
+    "end_time":"2025-11-02T00:00:00Z",
+    "platform":"elasticsearch",
+    "env":"sandbox"
+  }'
+```
+
 ## 使用示例
 
 ### JavaScript 客户端示例

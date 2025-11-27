@@ -410,6 +410,50 @@ curl -X POST http://localhost:3000/reload_config
    - 确保事件名称与行为名称一致
 
 6. **性能考虑**:
-   - 控制行为数量
-   - 优化正则表达式
-   - 调整`maxLogHistory`和`validationTimeout`参数
+  - 控制行为数量
+  - 优化正则表达式
+  - 调整`maxLogHistory`和`validationTimeout`参数
+
+## Elasticsearch 搜索配置
+
+系统使用 `config/es_search_config.yaml` 定义 Elasticsearch 查询的规则与参数。
+
+示例：
+```yaml
+index_name: "app-logs-*"
+query_config:
+  rules:
+    - range
+    - term
+    - bool
+  params:
+    range:
+      field: "@timestamp"
+      gte: "{{start_time}}"
+      lte: "{{end_time}}"
+    term:
+      field: "{{user_key}}"
+      value: "{{user_value}}"
+      context: "filter"
+    bool:
+      filter:
+        - term:
+            field: "event"
+            value: "outlog"
+            context: "filter"
+  source_fields:
+    - "@timestamp"
+    - "log"
+  size: 100
+  sort:
+    - { "@timestamp": { "order": "asc" } }
+```
+
+说明：
+- `rules`: 查询组装顺序；`range` 与 `term` 构造基础条件，`bool` 追加固定过滤。
+- `term`: 使用运行时 `user_key` 与 `user_value`；若值为正则表达式，服务端会自动改用 `regexp`。
+- `source_fields`: 限制返回字段为 `@timestamp` 与 `log`。
+- `size` 与 `sort`: 控制一次返回条数与排序。
+
+运行时参数：
+- `start_time`, `end_time`, `user_key`, `user_value` 由接口传入并替换模板中的 `{{...}}`。
