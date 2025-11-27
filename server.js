@@ -67,7 +67,13 @@ app.post('/config', (req, res) => {
 // Elasticsearch搜索API端点
 app.post('/api/es/search', (req, res) => {
     try {
-        const { index_name, user_key, user_value, start_time, end_time, platform, env, query_template, request_id, log_param } = req.body;
+        const body = req.body || {};
+        let { index_name, user_key, user_value, start_time, end_time, platform, env, query_template, request_id, log_param } = body;
+        // 兼容旧参数：如果传入 user_id，则映射为 user_key=userId, user_value=user_id
+        if (!user_key && body.user_id) {
+            user_key = 'userId';
+            user_value = body.user_id;
+        }
         
         // 验证必需参数
         if (!index_name || !user_key || !user_value || !start_time || !end_time) {
