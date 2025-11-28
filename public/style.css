@@ -654,21 +654,30 @@ button:hover, .button-like:hover {
 /* Elasticsearch搜索表单样式 */
 .es-search-form {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 24px;
+    margin-top: 14px;
+    align-items: start;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .es-search-form .form-group {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
+    padding: 10px;
+    background-color: #242424;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    box-sizing: border-box;
 }
 
 .es-search-form .form-group label {
     font-size: 12px;
     color: #b0b0b0;
     font-weight: 500;
+    letter-spacing: 0.2px;
 }
 
 .es-search-form .form-group input {
@@ -678,6 +687,8 @@ button:hover, .button-like:hover {
     background-color: #2a2a2a;
     color: #e0e0e0;
     font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .es-search-form .form-group input:focus {
@@ -735,4 +746,38 @@ button:hover, .button-like:hover {
 
 .platform[platform="system"] {
     color: #607D8B;
+}
+.es-search-form .form-group select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.es-search-form .form-group.actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#es-search-section {
+    border: 1px solid #333;
+    background: linear-gradient(180deg, #232323 0%, #1f1f1f 100%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.es-search-form .form-group.span-2 {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+    .es-search-form {
+        grid-template-columns: 1fr;
+    }
 }
